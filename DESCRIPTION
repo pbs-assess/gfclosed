@@ -1,0 +1,20 @@
+Package: gfclosed
+Version: 0.0.0.9000
+Title: Test the Effect of Closing Areas of a Survey Domain on Biomass Indices
+Description: What the package does (one paragraph).
+Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Encoding: UTF-8
+LazyData: true
+ByteCompile: true
+Depends: R (>= 3.3.0)
+License: GPL (>=2)
+Roxygen: list(markdown = TRUE)
+Remotes: github::pbs-assess/gfplot
+Additional_repositories: https://www.math.ntnu.no/inla/R/stable/
+Imports: 
+    ggplot2 (>= 3.0.0),
+    dplyr (>= 0.7.0),
+    boot,
+    INLA,
+    methods
+RoxygenNote: 6.1.0
