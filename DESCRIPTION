@@ -9,12 +9,15 @@ ByteCompile: true
 Depends: R (>= 3.3.0)
 License: GPL (>=2)
 Roxygen: list(markdown = TRUE)
-Remotes: github::pbs-assess/gfplot
+Remotes: github::pbs-assess/gfplot, github::pbs-assess/sdmTMB
 Additional_repositories: https://www.math.ntnu.no/inla/R/stable/
 Imports: 
     ggplot2 (>= 3.0.0),
     dplyr (>= 0.7.0),
     boot,
     INLA,
-    methods
+    methods,
+    sf,
+    sdmTMB,
+    gfplot
 RoxygenNote: 6.1.0
