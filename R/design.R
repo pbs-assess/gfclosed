@@ -1,3 +1,8 @@
+#' Calculate a design-based biomass index
+#'
+#' @param dat A data frame returned by [gfdata::get_survey_sets()].
+#' @param i A vector of indices to include. By default this includes all rows of
+#'   data. This is set up to work with bootstrapping via [boot_biomass()].
 calc_bio <- function(dat, i = seq_len(nrow(dat))) {
   dat[i, , drop = FALSE] %>%
     group_by(year, survey_id, area_km2, grouping_code) %>%
@@ -7,10 +12,10 @@ calc_bio <- function(dat, i = seq_len(nrow(dat))) {
     pull(biomass)
 }
 
-#' TODO
+#' Bootstrap the biomass estimates
 #'
-#' @param dat TODO
-#' @param reps TODO
+#' @param dat A data frame returned by [gfdata::get_survey_sets()].
+#' @param reps The number of bootstrap replicates.
 #'
 #' @export
 boot_biomass <- function(dat, reps = 1000) {
@@ -29,9 +34,3 @@ boot_biomass <- function(dat, reps = 1000) {
       )
     })
 }
-
-# surv <- d_survey_sets %>%
-#   filter(survey_series_desc == survey) %>%
-#   select(-sample_id) %>%
-#   unique()
-# out_boot <- boot_biomass(surv)

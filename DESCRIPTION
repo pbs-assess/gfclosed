@@ -9,7 +9,7 @@ ByteCompile: true
 Depends: R (>= 3.3.0)
 License: GPL (>=2)
 Roxygen: list(markdown = TRUE)
-Remotes: github::pbs-assess/gfplot, github::pbs-assess/sdmTMB
+Remotes: github::pbs-assess/gfplot, github::pbs-assess/sdmTMB, github::pbs-assess/gfdata
 Additional_repositories: https://www.math.ntnu.no/inla/R/stable/
 Imports: 
     ggplot2 (>= 3.0.0),
@@ -19,5 +19,6 @@ Imports:
     methods,
     sf,
     sdmTMB,
-    gfplot
+    gfplot,
+    gfdata
 RoxygenNote: 6.1.0
