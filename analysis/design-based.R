@@ -33,7 +33,7 @@ stopifnot(identical(nrow(data_all) - nrow(removed), nrow(data_exclude)))
 ggplot(data_exclude, aes(longitude, latitude)) +
   geom_point(colour = "grey40") +
   coord_equal() +
-  theme_light() +
+  gfplot::theme_pbs()
   geom_point(data = removed, colour = "red")
 
 # ------------------------------------------------------------------------
@@ -54,3 +54,21 @@ get_design_based_index <- function(dat, reps = 1000L) {
 
 index_all <- get_design_based_index(data_all)
 index_exclude <- get_design_based_index(data_exclude)
+
+index_all$type <- "All"
+index_exclude$type <- "Excluded"
+
+dplyr::bind_rows(index_all, index_exclude) %>%
+  group_by(species_common_name, survey_series_desc) %>%
+  mutate(geo_mean = exp(mean(log(biomass), na.rm = TRUE))) %>%
+  mutate(biomass = biomass/geo_mean) %>%
+  mutate(lwr = lwr/geo_mean) %>%
+  mutate(upr = upr/geo_mean) %>%
+  ggplot(aes(x = year, fill = type, colour = type)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.5) +
+  geom_line(aes(y = biomass)) +
+  geom_point(aes(y = biomass)) +
+  facet_grid(species_common_name~survey_series_desc, scales = "free_y") +
+  xlab("") +
+  ylab("Relative biomass (divided by the geometric mean)") +
+  gfplot::theme_pbs()
