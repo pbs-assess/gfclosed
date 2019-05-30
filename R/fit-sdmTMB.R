@@ -18,9 +18,10 @@ sdmTMB_biomass <- function(dat, survey, include_depth) {
     as.formula(density ~ 0 + as.factor(year) + depth_scaled + depth_scaled2)
   else
     as.formula(density ~ 0 + as.factor(year))
-  dat_m <- sdmTMB::sdmTMB(dat_tidy, formula, time = "year", spde = dat_spde, family = tweedie(link = "log"), silent = TRUE)
+  dat_m <- sdmTMB::sdmTMB(dat_tidy, formula, time = "year",
+    spde = dat_spde, family = sdmTMB::tweedie(link = "log"), silent = TRUE)
   preds <- sdmTMB:::predict.sdmTMB(dat_m, newdata = pred_grid)
   index <- sdmTMB::get_index(preds, bias_correct = FALSE) %>%
-    mutate(st_cv = sqrt(exp(se^2) - 1))
+    mutate(st_cv = sqrt(exp(.data$se^2) - 1))
   index
 }

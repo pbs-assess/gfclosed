@@ -2,15 +2,15 @@
 % Please edit documentation in R/design.R
 \name{boot_biomass}
 \alias{boot_biomass}
-\title{TODO}
+\title{Bootstrap the biomass estimates}
 \usage{
 boot_biomass(dat, reps = 1000)
 }
 \arguments{
-\item{dat}{TODO}
+\item{dat}{A data frame returned by \code{\link[gfdata:get_survey_sets]{gfdata::get_survey_sets()}}.}
 
-\item{reps}{TODO}
+\item{reps}{The number of bootstrap replicates.}
 }
 \description{
-TODO
+Bootstrap the biomass estimates
 }

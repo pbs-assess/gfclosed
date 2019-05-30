@@ -1,2 +1,4 @@
 ^gfclosed\.Rproj$
 ^\.Rproj\.user$
+^analysis/
+^local/

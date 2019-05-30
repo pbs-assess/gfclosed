@@ -11,6 +11,7 @@
 #'   position_identity coord_fixed
 #' @importFrom methods as
 #' @importFrom stats as.formula density median sd
+#' @importFrom rlang .data
 NULL
 
 if (getRversion() >= "2.15.1") utils::globalVariables(c("."))
@@ -18,6 +19,6 @@ if (getRversion() >= "2.15.1") {
   utils::globalVariables(c(
     "area_km2",  "biomass", "density", "density_kgpm2", "grouping_code",
     "species_common_name", "survey_id", "survey_series_desc",
-    "year"
+    "year", "akima_depth"
   ))
 }
