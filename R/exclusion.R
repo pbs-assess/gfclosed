@@ -13,9 +13,9 @@ exclude_areas <- function(data, exclude_poly, X, Y){
       exclude_poly[[i]] <- as.data.frame(exclude_poly[[i]])
       exclude_poly[[i]] <- select(exclude_poly[[i]], .data$geometry)
     }
-    exclude_poly <- dplyr::bind_rows(exclude_poly) %>%
-      sf::st_sf() %>%
-      sf::st_union()
+    exclude_poly <- suppressWarnings(dplyr::bind_rows(exclude_poly))
+    exclude_poly <- sf::st_sf(exclude_poly)
+    exclude_poly <- sf::st_union(exclude_poly)
   }
   data %>%
     sf::st_as_sf(coords = c(X, Y), agr = "constant",
