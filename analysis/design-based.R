@@ -7,30 +7,69 @@ plan(multiprocess)
 # ------------------------------------------------------------------------
 # Load closed-area polygon shapefiles
 wd <- getwd()
-setwd("~/Downloads/closed_area_shps") # FIXME: make this local
-sponge_reefs <- sf::st_read(dsn = ".", layer = "WDPA_gsr")
+setwd("~/Downloads/Gwaii Haanas Land-Sea-People plan FINAL ZONING_Nov 2018") # FIXME: make this local
+setwd("~/Downloads/closed_area_shps")
+# sponge_reefs <- sf::st_read(dsn = ".", layer = "WDPA_gsr")
 # GH_all <- sf::st_read(dsn = ".", layer = "WDPA_gwaii_haanas")
 GH_plan <- sf::st_read(dsn = ".", layer = "gwaii_haanas_plan_georef")
+GH_plan <- sf::st_read(dsn = ".")
+gh_plan_multi <- GH_plan[GH_plan$Zone_Type == "Multiple Use (IUCN VI)",]
+gh_plan_strict <- GH_plan[GH_plan$Zone_Type == "Strict Protection (IUCN II)",]
+
+gh_plan_multi <- st_transform(gh_plan_multi, crs = 4326)
+gh_plan_strict <- st_transform(gh_plan_strict, crs = 4326)
+
 setwd(wd) # FIXME: make this local
+
 
 # ------------------------------------------------------------------------
 # Get survey data, filter by closed-area polygons
 
-spp <- c("pacific ocean perch", "pacific cod")
+spp <- c("silvergray rockfish")
 data_all <- gfdata::get_survey_sets(spp, ssid = c(1, 3, 4, 16),
   joint_sample_ids = TRUE)
 # data_all <- readRDS("../gfsynopsis/report/data-cache/pacific-cod.rds")$survey_sets # FIXME: remove
+data_all <- readRDS("../gfsynopsis/report/data-cache/silvergray-rockfish.rds")$survey_sets # FIXME: remove
 # data_all <- readRDS("../gfsynopsis/report/data-cache/pacific-ocean-perch.rds")$survey_sets # FIXME: remove
 # data_all <- filter(data_all, survey_series_id %in% c(1, 3, 4, 16)) # FIXME: remove
-data_exclude <- exclude_areas(
-  data_all, list(sponge_reefs, GH_plan), "longitude", "latitude"
-)
+
+data_all <- filter(data_all, survey_series_id %in% c(1))
+# data_exclude <- exclude_areas(
+#   data_all, list(gh_plan_multi, gh_plan_strict), "longitude", "latitude"
+# )
+
+xx <- data_all %>%
+  sf::st_as_sf(coords = c("longitude", "latitude"),
+    crs = sf::st_crs(gh_plan_multi), remove = FALSE)
+
+cols <- RColorBrewer::brewer.pal(4, "Set3")
+pdf("map.pdf", width = 7, height = 9)
+plot(st_geometry(gh_plan_multi), col = paste0(cols[1], "60"))
+plot(st_geometry(gh_plan_strict), add = TRUE, reset=FALSE, col  = paste0(cols[2], "60"))
+plot(st_geometry(xx[,"fe_major_level_id"]), col = "black", pch = 4,
+  add = TRUE, reset = FALSE)
+dev.off()
+
+int <- sf::st_intersects(gh_plan_multi, xx[,"fe_major_level_id"])
+int2 <- sf::st_intersects(gh_plan_strict, xx[,"fe_major_level_id"])
+excluded <- union(xx$fishing_event_id[unlist(int)], xx$fishing_event_id[unlist(int2)])
+excluded2 <- xx$fishing_event_id[unlist(int2)]
+
+message(length(excluded), " fishing events removed")
+message(length(excluded2), " fishing events removed")
+
+data_exclude <- filter(data_all, !fishing_event_id %in% excluded)
+data_exclude <- filter(data_all, !fishing_event_id %in% excluded2)
+
 removed <- anti_join(data_all, select(data_exclude, fishing_event_id),
   by = "fishing_event_id"
 )
 
 message(nrow(removed), " fishing events removed")
 stopifnot(identical(nrow(data_all) - nrow(removed), nrow(data_exclude)))
+
+length(unique(data_exclude$grouping_code))
+length(unique(data_all$grouping_code))
 
 ggplot(data_exclude, aes(longitude, latitude)) +
   geom_point(colour = "grey40", pch = 4, alpha = 0.4) +
@@ -68,10 +107,18 @@ dplyr::bind_rows(index_all, index_exclude) %>%
   mutate(lwr = lwr / geo_mean) %>%
   mutate(upr = upr / geo_mean) %>%
   ggplot(aes(x = year, fill = type, colour = type)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.5) +
-  geom_line(aes(y = biomass)) +
-  geom_point(aes(y = biomass)) +
+  geom_vline(xintercept = 2003:2018, lty = 1, col = "grey90") +
+  geom_vline(xintercept = seq(2005, 2015, 5), lty = 1, col = "grey75") +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.5, colour = NA) +
+  geom_line(aes(y = biomass), lwd = 0.8) +
+  geom_point(aes(y = biomass), size = 2) +
   facet_grid(species_common_name ~ survey_series_desc, scales = "free_y") +
   xlab("") +
-  ylab("Relative biomass (divided by the geometric mean)") +
-  gfplot::theme_pbs()
+  ylab("Relative biomass\n(divided by the geometric mean)") +
+  gfplot::theme_pbs() +
+  scale_color_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  ylim(0, NA)
+
+ggsave("ts.pdf", width = 6, height = 4)
+ggsave("ts-strict.pdf", width = 6, height = 4)
