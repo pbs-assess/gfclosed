@@ -8,7 +8,7 @@
 #' @param Y FIXME:
 #' @export
 exclude_areas <- function(data, exclude_poly, X, Y){
-  if (class(exclude_poly) == "list" && length(exclude_poly) > 1){
+  if (class(exclude_poly) == "list"){
     for (i in seq_along(exclude_poly)){
       exclude_poly[[i]] <- as.data.frame(exclude_poly[[i]])
       exclude_poly[[i]] <- select(exclude_poly[[i]], .data$geometry)
