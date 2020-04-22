@@ -3,3 +3,7 @@ local/
 .Rhistory
 *.pdf
 *.png
+*.dbf
+*.prj
+*.shp
+*.shx
