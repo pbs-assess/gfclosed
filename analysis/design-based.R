@@ -6,20 +6,19 @@ plan(multiprocess)
 
 # ------------------------------------------------------------------------
 # Load closed-area polygon shapefiles
-wd <- getwd()
-setwd("~/Downloads/Gwaii Haanas Land-Sea-People plan FINAL ZONING_Nov 2018") # FIXME: make this local
-setwd("~/Downloads/closed_area_shps")
+# wd <- getwd()
+# setwd("~/Downloads/Gwaii Haanas Land-Sea-People plan FINAL ZONING_Nov 2018") # FIXME: make this local
+# setwd("~/Downloads/closed_area_shps")
 # sponge_reefs <- sf::st_read(dsn = ".", layer = "WDPA_gsr")
 # GH_all <- sf::st_read(dsn = ".", layer = "WDPA_gwaii_haanas")
-GH_plan <- sf::st_read(dsn = ".", layer = "gwaii_haanas_plan_georef")
-GH_plan <- sf::st_read(dsn = ".")
+GH_plan <- sf::st_read(dsn = "data/closed_area_shps", layer = "gwaii_haanas_plan_georef")
 gh_plan_multi <- GH_plan[GH_plan$Zone_Type == "Multiple Use (IUCN VI)",]
 gh_plan_strict <- GH_plan[GH_plan$Zone_Type == "Strict Protection (IUCN II)",]
 
 gh_plan_multi <- st_transform(gh_plan_multi, crs = 4326)
 gh_plan_strict <- st_transform(gh_plan_strict, crs = 4326)
 
-setwd(wd) # FIXME: make this local
+# setwd(wd) # FIXME: make this local
 
 
 # ------------------------------------------------------------------------
@@ -29,7 +28,7 @@ spp <- c("silvergray rockfish")
 data_all <- gfdata::get_survey_sets(spp, ssid = c(1, 3, 4, 16),
   joint_sample_ids = TRUE)
 # data_all <- readRDS("../gfsynopsis/report/data-cache/pacific-cod.rds")$survey_sets # FIXME: remove
-data_all <- readRDS("../gfsynopsis/report/data-cache/silvergray-rockfish.rds")$survey_sets # FIXME: remove
+data_all <- readRDS("D:\\GitHub\\pbs-assess\\gfsynopsis-old\\report\\data-cache\\yelloweye-rockfish.rds")$survey_sets # FIXME: remove
 # data_all <- readRDS("../gfsynopsis/report/data-cache/pacific-ocean-perch.rds")$survey_sets # FIXME: remove
 # data_all <- filter(data_all, survey_series_id %in% c(1, 3, 4, 16)) # FIXME: remove
 
@@ -80,7 +79,7 @@ ggplot(data_exclude, aes(longitude, latitude)) +
 
 # ------------------------------------------------------------------------
 # Get design-based bootstrap survey index values
-
+data_all <- survey_sets %>% filter(survey_series_id == 1)
 get_design_based_index <- function(dat, reps = 1000L) {
   combinations <- expand.grid(
     x = unique(dat$species_code),
