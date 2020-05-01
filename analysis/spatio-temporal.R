@@ -1,20 +1,20 @@
 # density calcs, design-based
 
-#arg's
-species_rds = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/yelloweye-rockfish.rds"
+
 
 
 my_function <- function(dat,
   n_knots = 200, anisotropy = FALSE, silent = TRUE,
   bias_correct = FALSE, species_name){
 
+  tictoc::tic()
   ssid <- unique(dat$survey_series_id)
   survey <- unique(dat$survey_series_desc)
   species_name <- unique(dat$species_common_name) %>%
     gsub(pattern = " ", replacement = "-")
 
 # set up data
-  col <- if (ssid %in% c(1, 3, 4, 16)) "density_kgpm2" else "density_ppkm2"
+  dat$density <- if (ssid %in% c(1, 3, 4, 16)) "density_kgpm2" else "density_ppkm2"
   dat <- dat %>%
     filter(!(year == 2014 & survey_series_id == 16)) %>%
     select(year, survey_series_id, fishing_event_id, longitude, latitude, density = col, species_code) %>%
@@ -48,7 +48,7 @@ my_function <- function(dat,
 
   formula <- stats::as.formula(density ~ 0 + as.factor(year))
   spde <- sdmTMB::make_spde(dat$X, dat$Y, n_knots = n_knots)
-  tictoc::tic()
+
   m <- sdmTMB::sdmTMB(
     formula = formula,
     data = dat, time = "year", spde = spde, family = sdmTMB::tweedie(link = "log"),
@@ -56,6 +56,7 @@ my_function <- function(dat,
     predictions <- stats::predict(m, newdata = survey_grid, return_tmb_object = TRUE)
   index <- sdmTMB::get_index(predictions, bias_correct = bias_correct)
   index <- dplyr::mutate(index, cv = sqrt(exp(se^2) - 1))
+  tictoc::toc()
   list(
     data = dat,
     model = m,
@@ -65,8 +66,6 @@ my_function <- function(dat,
     survey = survey,
     species_name = species_name
   )
-  tictoc::toc()
-
 }
 
 # t <- my_function(dat = dat, species_rds = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/yelloweye-rockfish.rds", ssid = 1)
@@ -77,23 +76,27 @@ my_function <- function(dat,
 
 dat <- readRDS("D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/yelloweye-rockfish.rds")$survey_sets %>%
   filter(survey_series_id %in% c(1, 3))
+future::plan(multisession, workers = availableCores()/2)
 
-d <- dat %>% group_split(survey_series_id)
-test <- purrr::map(d, my_function)
+# d <- dat %>% group_split(survey_series_id) # works
+# test <- purrr::map(d, my_function)
 
 sdmTMB_index <- function(dat){
-  dat %>% group_split(survey_series_id) %>%
+  dat %>% group_split(survey_series_id) %>% # works
     purrr::map(my_function)
+  # lapply(my_function) # also works
 }
 test_sdmTMB_index <- sdmTMB_index(dat)
 
+# --------------- the following attempts break ----------------------
 sdmTMB_index2 <- function(dat){
-  dat %>% group_split(survey_series_id) %>%
-    future.apply::future_lapply(my_function)
+  dat %>% group_split(survey_series_id) %>% # breaks
+    # purrr::map(my_function)
+    # future.apply::future_lapply(my_function)
+    furrr::future_map(my_function)
 }
 test_sdmTMB_index2 <- sdmTMB_index2(dat)
 
-future::plan(multisession)
-test <- future.apply::future_lapply(d, my_function)
+test <- future.apply::future_lapply(d, my_function) # breaks
 
 
