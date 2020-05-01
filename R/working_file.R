@@ -89,10 +89,22 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
 # Clip polygons of proposed closed areas from survey dataset
 # ------------------------------------------------------------------------
 
-clip_by_mpa <- function(data = survey_sets, fishery = trawl, ssid = 1){
+# clip_by_mpa <- function(data = survey_sets, ssid = 1){
+#   data <- data %>% filter(survey_series_id %in% ssid)
+#   message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
+#   int <- suppressMessages(sf::st_intersects(closed_areas(ssid = ssid), data[,"fishing_event_id"]))
+#   excluded <- data$fishing_event_id[unlist(int)]
+#   data_exclude <- filter(data, !fishing_event_id %in% excluded)
+#   removed <- filter(data, fishing_event_id %in% excluded)
+#   stopifnot(identical(nrow(data) - nrow(removed), nrow(data_exclude)))
+#   message(nrow(removed), " fishing events removed")
+#   return(data_exclude)
+# }
+
+clip_by_mpa <- function(data = survey_sets, fishery = "trawl"){
   data <- data %>% filter(survey_series_id %in% ssid)
   message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
-  int <- suppressMessages(sf::st_intersects(closed_areas(ssid = ssid), data[,"fishing_event_id"]))
+  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), data[,"fishing_event_id"]))
   excluded <- data$fishing_event_id[unlist(int)]
   data_exclude <- filter(data, !fishing_event_id %in% excluded)
   removed <- filter(data, fishing_event_id %in% excluded)
@@ -120,4 +132,9 @@ clip_by_mpa <- function(data = survey_sets, fishery = trawl, ssid = 1){
 #   facet_wrap(~year) +
 #   gfplot::theme_pbs() +
 #   geom_point(data = removed, colour = "red", pch = 21)
+
+
+
+# ss <- split(survey_sets, survey_sets$survey_series_id)
+# t <- map(ss, clip_by_mpa, ssid = c(1,3,4,16, 22, 36))
 
