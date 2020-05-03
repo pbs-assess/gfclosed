@@ -24,7 +24,7 @@ boot_biomass <- function(dat, reps = 1000) {
     dplyr::do({
       b <- boot::boot(., statistic = calc_bio, strata = .$grouping_code, R = reps)
       suppressWarnings(bci <- boot::boot.ci(b, type = "perc"))
-      dplyr::tibble(
+      d <- dplyr::tibble(
         mean_boot = mean(b$t),
         median_boot = median(b$t),
         lwr = bci$percent[[4]],
@@ -32,5 +32,5 @@ boot_biomass <- function(dat, reps = 1000) {
         cv = sd(b$t) / mean(b$t),
         biomass = calc_bio(.)
       )
-    })
+    }) %>% ungroup()
 }
