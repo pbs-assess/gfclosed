@@ -8,3 +8,8 @@ local/
 *.shp
 *.shx
 *.gdb
+*.cpg
+*.lyr
+*.sbn
+*.sbx
+*.shp.xml
