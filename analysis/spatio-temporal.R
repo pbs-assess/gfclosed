@@ -25,7 +25,7 @@ expand_prediction_grid <- function(grid, years) { # from yelloweye-inside utils
   nd
 }
 
-my_function <- function(dat,
+st_biomass <- function(dat,
   n_knots = 150, anisotropy = FALSE, silent = TRUE,
   bias_correct = FALSE, species_name){
 
@@ -46,8 +46,9 @@ my_function <- function(dat,
 
   dat <- mutate(dat, present = ifelse(density > 0, 1, 0))
   if (mean(dat$present) < 0.05) {
-    message("Not enough data for SSID ", ssid, "; ", species_name, ".")
-  } else {
+    warning("Not enough data for SSID ", ssid, "; ", species_name, ".")
+    return(NULL)
+  }
 
     # prepare survey grid for each year
     synoptic_grid <- gfplot::synoptic_grid %>%
@@ -99,7 +100,6 @@ my_function <- function(dat,
       survey = survey,
       species_name = species_name
     )
-  }
 }
 
 
