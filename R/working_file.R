@@ -5,7 +5,9 @@ library(sf)
 library(rgdal)
 # ------------------------------------------------------------------------
 # Load MPA draft polygon shapefile (from gdb from Katie Gale Apr 2020); filter for desired restricted zones
-closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, level = c("X", "C")){
+
+closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, level = c("X", "C"), out_crs = 3156){
+  closed %<>% sf::st_transform(crs = out_crs)
   if (ssid %in% c(1, 3, 4, 16) && is.null(fishery) || is.null(ssid) && fishery == "trawl"){
     closed <- mpa_network_shp %>%
       select(UID, hu_co_demersalfishing_bottomtrawling_d) %>%
@@ -29,13 +31,15 @@ closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, 
 # ------------------------------------------------------------------------
 # note ssid 1 = QCS, 3 = HS, 4 = wcvi, 16 = wchg, 22 = HBLL Outside North, 36 = HBLL Outside North
 
-import_survey_sets <- function(spp, ssid = c(1, 3, 4, 16, 22, 36), data_cache = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"){
+import_survey_sets <- function(spp, ssid = c(1, 3, 4, 16), dir, min_year = 1950){
   spp <- spp %>% gsub(pattern = " ", replacement = "-")
 
-  if(file.exists(paste0(data_cache, spp, ".rds"))){
-    survey_sets <- readRDS(paste0(data_cache, spp, ".rds"))$survey_sets %>%
+  if(file.exists(paste0(dir, spp, ".rds"))){
+    survey_sets <- readRDS(paste0(dir, spp, ".rds"))$survey_sets %>%
       filter(survey_series_id %in% ssid) %>%
-      st_as_sf(coords = c("longitude", "latitude"), crs = sf::st_crs(4326), remove = FALSE)
+      filter(year >= min_year) %>%
+      st_as_sf(coords = c("longitude", "latitude"), crs = sf::st_crs(4326), remove = FALSE) %>%
+      st_transform(3156)
   }
   else{data <- gfdata::get_survey_sets(spp, ssid)}
 }
@@ -68,7 +72,7 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
   cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
   data <- data %>% filter(survey_series_id %in% ssid)
 
-  g <- ggplot() + geom_sf(data = st_transform(BC_coast_albers, crs = 4326)) +
+  g <- ggplot() + geom_sf(data = st_transform(BC_UTM9, crs = 4326)) +
     geom_sf(data = closed_areas(ssid = ssid, level = c("X", "C")), fill =paste0(cols[6], "60"))
 
   if(ssid == 1){g <- g + geom_sf(data = qcs, fill = paste0(cols[3], "60"))}
@@ -89,22 +93,10 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
 # Clip polygons of proposed closed areas from survey dataset
 # ------------------------------------------------------------------------
 
-# clip_by_mpa <- function(data = survey_sets, ssid = 1){
-#   data <- data %>% filter(survey_series_id %in% ssid)
-#   message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
-#   int <- suppressMessages(sf::st_intersects(closed_areas(ssid = ssid), data[,"fishing_event_id"]))
-#   excluded <- data$fishing_event_id[unlist(int)]
-#   data_exclude <- filter(data, !fishing_event_id %in% excluded)
-#   removed <- filter(data, fishing_event_id %in% excluded)
-#   stopifnot(identical(nrow(data) - nrow(removed), nrow(data_exclude)))
-#   message(nrow(removed), " fishing events removed")
-#   return(data_exclude)
-# }
-
-clip_by_mpa <- function(data = survey_sets, fishery = "trawl"){
+clip_by_mpa <- function(data = survey_sets, ssid){
   data <- data %>% filter(survey_series_id %in% ssid)
   message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
-  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), data[,"fishing_event_id"]))
+  int <- suppressMessages(sf::st_intersects(closed_areas(ssid = ssid), data[,"fishing_event_id"]))
   excluded <- data$fishing_event_id[unlist(int)]
   data_exclude <- filter(data, !fishing_event_id %in% excluded)
   removed <- filter(data, fishing_event_id %in% excluded)
@@ -113,28 +105,24 @@ clip_by_mpa <- function(data = survey_sets, fishery = "trawl"){
   return(data_exclude)
 }
 
- # data_exclude <- clip_by_mpa(survey_sets, ssid = 1)
-
-# plot_survey_pts(data = survey_sets, ssid = 1) +
-  # geom_point(data = data_exclude, aes(y = latitude, x = longitude), size = 0.5, pch = 4, color = "light blue")
 
 # ------------------------------------------------------------------------
-# Survey index
+# Survey indices
 # ------------------------------------------------------------------------
-# length(unique(data_exclude$grouping_code))
-# length(unique(survey_sets$grouping_code))
-#
-# # separate by ssid,
-#
-# ggplot(data_exclude, aes(longitude, latitude)) +
-#   geom_point(colour = "grey40", pch = 4, alpha = 0.4) +
-#   coord_equal() +
-#   facet_wrap(~year) +
-#   gfplot::theme_pbs() +
-#   geom_point(data = removed, colour = "red", pch = 21)
 
+design_biomass <- function(dat){
+  dat %>% group_split(survey_series_id) %>%
+    # purrr::map(boot_biomass)
+    furrr::future_map_dfr(boot_biomass)
+}
 
+sdmTMB_biomass <- function(dat){
+  dat %>% group_split(survey_series_id) %>%
+    # purrr::map(my_function)
+    furrr::future_map(my_function) %>%
+    purrr::discard(is.null) %>%
+    purrr::map_dfr(~mutate(.$index, species_name = .$species_name, survey = .$survey)) %>%
+    as_tibble()
+}
 
-# ss <- split(survey_sets, survey_sets$survey_series_id)
-# t <- map(ss, clip_by_mpa, ssid = c(1,3,4,16, 22, 36))
 
