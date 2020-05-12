@@ -53,28 +53,28 @@ boot_biomass <- function(dat, reps = 100) {
 
 #fit spatiotemporal biomass model using sdmTMB()
 #predict onto 2km grid, calculate biomass index
-st_biomass <- function(dat, survey, include_depth) {
-  dat %<>%
-    gfplot::tidy_survey_sets(survey, years = seq(1, 1e6)) %>%
-    gfplot:::interp_survey_bathymetry() %$%
-    gfplot:::scale_survey_predictors(data)
-
-  pred_grid <- dat %>%
-    filter(., year == max(.$year)) %>%
-    gfplot:::make_prediction_grid(cell_width = 2, survey = survey) %$%
-    rename(grid, depth = akima_depth)
-
-  dat_spde <- sdmTMB::make_spde(dat$X, dat$Y, 200)
-  formula <- if (include_depth)
-    as.formula(density ~ 0 + as.factor(year) + depth_scaled + depth_scaled2)
-  else
-    as.formula(density ~ 0 + as.factor(year))
-  dat_m <- sdmTMB::sdmTMB(dat, formula, time = "year", spde = dat_spde, family = tweedie(link = "log"), silent = TRUE)
-  preds <- sdmTMB:::predict.sdmTMB(dat_m, newdata = pred_grid)
-  index <- sdmTMB::get_index(preds, bias_correct = FALSE) %>%
-    mutate(cv = sqrt(exp(se^2) - 1)) %>%
-    return()
-}
+# st_biomass <- function(dat, survey, include_depth) {
+#   dat %<>%
+#     gfplot::tidy_survey_sets(survey, years = seq(1, 1e6)) %>%
+#     gfplot:::interp_survey_bathymetry() %$%
+#     gfplot:::scale_survey_predictors(data)
+#
+#   pred_grid <- dat %>%
+#     filter(., year == max(.$year)) %>%
+#     gfplot:::make_prediction_grid(cell_width = 2, survey = survey) %$%
+#     rename(grid, depth = akima_depth)
+#
+#   dat_spde <- sdmTMB::make_spde(dat$X, dat$Y, 200)
+#   formula <- if (include_depth)
+#     as.formula(density ~ 0 + as.factor(year) + depth_scaled + depth_scaled2)
+#   else
+#     as.formula(density ~ 0 + as.factor(year))
+#   dat_m <- sdmTMB::sdmTMB(dat, formula, time = "year", spde = dat_spde, family = tweedie(link = "log"), silent = TRUE)
+#   preds <- sdmTMB:::predict.sdmTMB(dat_m, newdata = pred_grid)
+#   index <- sdmTMB::get_index(preds, bias_correct = FALSE) %>%
+#     mutate(cv = sqrt(exp(se^2) - 1)) %>%
+#     return()
+# }
 
 #given data for a single species, calculate design-based and spatiotemporal indices using boot_biomass() and st_biomass()
 #join indices into single data frame, standardize all by their geometric mean
