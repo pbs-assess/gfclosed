@@ -227,7 +227,8 @@ design_biomass <- function(dat){
   dat %>% group_split(survey_series_id) %>%
     # purrr::map(boot_biomass) # retained here for trouble-shooting
     furrr::future_map_dfr(boot_biomass) %>%
-    mutate(analysis = "design-based")
+    select(analysis, species_name = species_common_name, survey_series_desc, year, index = mean_boot,
+      lwr, upr, cv)
 }
 
 
@@ -236,8 +237,9 @@ sdmTMB_biomass <- function(dat){
     # purrr::map(st_biomass) # retained here for trouble-shooting
     furrr::future_map(st_biomass) %>%
     purrr::discard(is.null) %>%
-    purrr::map_dfr(~mutate(.$index, species_name = .$species_name, survey = .$survey)) %>%
+    purrr::map_dfr(~mutate(analysis = "geostatistical", .$index, species_name = gsub("_", " ", .$species_name), survey = .$survey)) %>%
     as_tibble() %>%
-    mutate(analysis = "geostatistical")
+    select(analysis, species_name, survey_series_desc = survey, year, index = est,
+      lwr, upr, cv)
 }
 

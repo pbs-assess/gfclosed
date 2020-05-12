@@ -11,21 +11,28 @@ library(purrr)
 library(furrr)
 plan(multisession, workers = availableCores() / 2)
 
+
+# trawl <- closed_areas(fishery = "trawl")
+# ll <- closed_areas(fishery = "longline")
+# trap <- closed_areas(fishery = "trap")
+
 # get survey set data
+if (Sys.info()[['user']] == "keppele") {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
+}
 spp <- c("yelloweye rockfish", "pacific cod") # example species
-# data_all <- import_survey_sets("yelloweye rockfish", ssid = c(1, 4), dir) %>% filter(year > 2010)
-data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir)
+# data_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) %>% filter(year > 2016)
+data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3), dir, min_year = 2016) # using years since 2016 for faster testing
 names(data_all) <- spp
 
-
 # get MPA spatial file from original shapefile (created by Dana from gdb from Katie Gale)
-# closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
-#   select(-OBJECTID_1)
-# names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry")
-# names(closed) <- readRDS(MPA_names, "data/MPA_cols.rds")
-# saveRDS(closed, "data/closed.rds")
-closed <- readRDS("data/closed.rds")
+if (Sys.info()[['user']] == "keppele") {
+closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
+  select(-OBJECTID_1)
+names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry")
+} else {
+  closed <- readRDS("data/closed.rds")
+}
 
 # filter closed areas spatial file for fishery type/gear of interest
 trawl <- closed_areas(closed, fishery = "trawl")
@@ -33,10 +40,9 @@ trawl <- closed_areas(closed, fishery = "trawl")
 # clip survey sets data by applicable MPA restricted zones
 data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 
-
+### TO DO: FIX SO RUNS FOR SINGLE SPECIES
 
 # d <- design_biomass(dat)
-#
 # m <- sdmTMB_biomass(dat)
 
 # scenarios:
@@ -55,32 +61,28 @@ data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 
 
 # dat = list of survey_sets data for various species
-get_indices <- function(dat, dat_exclude, design = TRUE, model = TRUE){
+get_indices <- function(dat, dat_exclude = NULL, ssid = c(1, 3, 4, 16), design = TRUE, model = TRUE){
+  # dat %<>% filter(servey_series_id %in% ssid)
+  # d_exclude %<>% filter(servey_series_id %in% ssid)
+
   if (design) {
-    d <- furrr::future_map_dfr(dat, design_biomass) %>%
-      select(species_name = species_common_name, survey_series_desc, year, index = mean_boot,
-        lwr, upr, cv)
+    d <- furrr::future_map_dfr(dat, design_biomass)
     if (!is.null(dat_exclude)) {
-      d_exclude <- furrr::future_map_dfr(dat_exclude, design_biomass) %>%
-        select(species_name = species_common_name, survey_series_desc, year, index = mean_boot,
-          lwr, upr, cv)
-    }
+      d_exclude <- furrr::future_map_dfr(dat_exclude, design_biomass)
+    } else d_exclude <- NULL
   }
+
   if (model){
-    m <- furrr::future_map_dfr(dat, sdmTMB_biomass) %>%
-      select(species_name, survey_series_desc = survey, survey, year, index = est,
-        lwr, upr, cv)
+    m <- furrr::future_map_dfr(dat, sdmTMB_biomass)
     if (!is.null(dat_exclude)) {
-      d_exclude <- furrr::future_map_dfr(dat_exclude, sdmTMB_biomass) %>%
-        select(species_name = species_common_name, survey_series_desc, year, index = mean_boot,
-          lwr, upr, cv)
-    }
+      m_exclude <- furrr::future_map_dfr(dat_exclude, sdmTMB_biomass)
+      } else m_exclude <- NULL
   }
-  rbind(d, m)
+  rbind(if(exists("d")) d, if(exists("d_exclude")) d_exclude, if(exists("m")) m, if(exists("m_exclude")) m_exclude)
 }
 
-# TO DO: add in label/column for analysis type
-i <- get_indices(data_all, dat_exclude = data_exclude)
+
+i <- get_indices(data_all)
 
 
 # ------------------------------ PLOTTING -------------------------------------
@@ -94,6 +96,20 @@ wcvi <- sf::st_read(dsn=syn, layer = "WCVI_BLOB")
 
 theme_set(theme_bw())
 cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
+
+# ------------------------------------------------------------------------
+# Load other map components
+# ------------------------------------------------------------------------
+# theme_set(theme_bw())
+# # BC_coast_albers <- sf::st_read(dsn = "data/baselayer_shps", layer = "BC_coast_albers")
+# syn <- "data/SynopticTrawlSurveyBoundaries"
+# hbll <- "data/HBLL_boundaries"
+# hs <- sf::st_read(dsn=syn, layer = "HS_BLOB")
+# qcs <- sf::st_read(dsn=syn, layer = "QCS_BLOB")
+# wchg <- sf::st_read(dsn=syn, layer = "WCHG_BLOB")
+# wcvi <- sf::st_read(dsn=syn, layer = "WCVI_BLOB")
+# hbll_out_n <- sf::st_read(dsn=hbll, layer = "PHMA_N_boundaries")
+# hbll_out_s <- sf::st_read(dsn=hbll, layer = "PHMA_S_boundaries")
 
 # Plot survey boundaries and trawl-restricting MPAs
 ggplot() + geom_sf(data = coastUTM) +
@@ -119,8 +135,9 @@ ggplot() + geom_sf(data = coastUTM) +
 
 # TO DO: make a function to plot biomass for a given species and ssid
 plot_design_based_biomass <- function(dat){
-dat %>%
-  ggplot(aes(year, index, ymin = lwr, ymax = upr)) +
+
+  ggplot(i) +
+    geom_line(aes(year, index)), ymin = lwr, ymax = upr)) +
   geom_ribbon(alpha = 0.4) +
   geom_line() +
   facet_wrap(~survey_series_id)

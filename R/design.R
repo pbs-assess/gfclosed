@@ -25,6 +25,7 @@ boot_biomass <- function(dat, reps = 1000) {
       b <- boot::boot(., statistic = calc_bio, strata = .$grouping_code, R = reps)
       suppressWarnings(bci <- boot::boot.ci(b, type = "perc"))
       d <- dplyr::tibble(
+        analysis = "design-based",
         species_common_name = unique(dat$species_common_name),
         mean_boot = mean(b$t),
         median_boot = median(b$t),
