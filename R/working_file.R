@@ -4,7 +4,15 @@ library(future)
 library(sf)
 library(rgdal)
 # ------------------------------------------------------------------------
-# Load MPA draft polygon shapefile (from gdb from Katie Gale Apr 2020); filter for desired restricted zones
+
+#' Create a spatial file of closed areas by fishery/survey type
+#'
+#' @param mpa_network_shp MPA polygon shapefile (draft from gdb from Katie Gale Apr 2020); filter for desired restricted zones
+#' @param ssid Survey series id to select restricted areas for
+#' @param fishery Fishery type to select restricted areas for (eg. "trawl", "ll" (longline), "trap" (not yet implemented))
+#' @param level Level of restriction. "X" = closed to all activity of associated fishery/survey type, "C" = closed on certain conditions
+#' @param out_crs Coordinate reference system for the output polygon
+#' @export
 
 closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, level = c("X", "C"), out_crs = 3156){
   closed %<>% sf::st_transform(crs = out_crs)
@@ -22,16 +30,19 @@ closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, 
   #     filter(hu_co_demersalfishing_sabletrapcom_d %in% level)}
   return(closed)
 }
-# trawl <- closed_areas(fishery = "trawl")
-# ll <- closed_areas(fishery = "longline")
-# trap <- closed_areas(fishery = "trap")
 
-# ------------------------------------------------------------------------
-# Load synoptic survey data (eg. yelloweye rockfish)
-# ------------------------------------------------------------------------
-# note ssid 1 = QCS, 3 = HS, 4 = wcvi, 16 = wchg, 22 = HBLL Outside North, 36 = HBLL Outside North
-
-import_survey_sets <- function(spp, ssid = c(1, 3, 4, 16), dir, min_year = 1950){
+#' Load survey set data
+#'
+#' @param spp Species name(s) to get survey data for (in lower case; e.g., spp = "yelloweye rockfish" or spp = c("yelloweye rockfish", "pacific cod"))
+#' @param ssid Survey series id(s) to get survey data for
+#' @param dir Directory where species data from gfdata::get_survey_sets() exists (.rds file(s))
+#' @param min_year Earliest year to retrieve survey data for
+#' @export
+#' @example
+#' \dontrun{
+#' survey_sets <- import_survey_sets("yelloweye-rockfish", ssid = c(1, 3, 4, 16), dir = dir, min_year = 2003)
+#' }
+import_survey_sets <- function(spp, ssid, dir, min_year = 1950){
   spp <- spp %>% gsub(pattern = " ", replacement = "-")
 
   if(file.exists(paste0(dir, spp, ".rds"))){
@@ -43,25 +54,16 @@ import_survey_sets <- function(spp, ssid = c(1, 3, 4, 16), dir, min_year = 1950)
   }
   else{data <- gfdata::get_survey_sets(spp, ssid)}
 }
-# survey_sets <- import_survey_sets("yelloweye-rockfish")
 
-# ------------------------------------------------------------------------
-# Load other map components
-# ------------------------------------------------------------------------
-# theme_set(theme_bw())
-# # BC_coast_albers <- sf::st_read(dsn = "data/baselayer_shps", layer = "BC_coast_albers")
-# syn <- "data/SynopticTrawlSurveyBoundaries"
-# hbll <- "data/HBLL_boundaries"
-# hs <- sf::st_read(dsn=syn, layer = "HS_BLOB")
-# qcs <- sf::st_read(dsn=syn, layer = "QCS_BLOB")
-# wchg <- sf::st_read(dsn=syn, layer = "WCHG_BLOB")
-# wcvi <- sf::st_read(dsn=syn, layer = "WCVI_BLOB")
-# hbll_out_n <- sf::st_read(dsn=hbll, layer = "PHMA_N_boundaries")
-# hbll_out_s <- sf::st_read(dsn=hbll, layer = "PHMA_S_boundaries")
-
-# ------------------------------------------------------------------------
-# Plot survey data before excluding MPA network closed areas
-# ------------------------------------------------------------------------
+#' Plot survey point data
+#'
+#' @param data Data for one species from `gfdata::get_survey_sets()` (or `import_survey_sets()[spp]`)
+#' @param ssid Survey series id(s) to plot data for
+#' @export
+#' @example
+#' \dontrun{
+#' gfdata::get_survey_sets("yeloloweye rockfish") %>%
+#'  plot_survey_pts(ssid = 1)}
 plot_survey_pts <- function(data = survey_sets, ssid = NULL){
  if (is.null(ssid)) {
    stop("Please provide ssid.",
@@ -87,12 +89,17 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
     guides(fill = guide_legend()) # TO DO: make legend
 }
 
-# plot_survey_pts(data = survey_sets, ssid = 1)
+
 
 # ------------------------------------------------------------------------
-# Clip polygons of proposed closed areas from survey dataset
+#
 # ------------------------------------------------------------------------
 
+#' Clip survey set data by proposed MPA closed areas
+#'
+#' @param data Survey set data for a species from `gfdata::get_survey_sets()`
+#' @param ssid Survey series id(s) to select closed areas
+#' @export
 clip_by_mpa <- function(data = survey_sets, ssid){
   data <- data %>% filter(survey_series_id %in% ssid)
   message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
@@ -110,19 +117,26 @@ clip_by_mpa <- function(data = survey_sets, ssid){
 # Survey indices
 # ------------------------------------------------------------------------
 
+#' Survey design-based biomass index
+#'
+#' @param dat List containing survey set data by species (alread filtered for desired survey series id(s))
+#' @export
 design_biomass <- function(dat){
   dat %>% group_split(survey_series_id) %>%
-    # purrr::map(boot_biomass)
+    # purrr::map(boot_biomass) # old way (retained here for trouble-shooting)
     furrr::future_map_dfr(boot_biomass)
 }
 
+#' Survey st model-based biomass index
+#'
+#' @param dat List containing survey set data by species (alread filtered for desired survey series id(s))
+#' @export
 sdmTMB_biomass <- function(dat){
   dat %>% group_split(survey_series_id) %>%
-    # purrr::map(my_function)
-    furrr::future_map(my_function) %>%
+    # purrr::map(st_biomass)
+    furrr::future_map(st_biomass) %>%
     purrr::discard(is.null) %>%
     purrr::map_dfr(~mutate(.$index, species_name = .$species_name, survey = .$survey)) %>%
     as_tibble()
 }
-
 
