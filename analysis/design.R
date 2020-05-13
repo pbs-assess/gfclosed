@@ -9,6 +9,7 @@ library(magrittr)
 library(future)
 library(purrr)
 library(furrr)
+library(lwgeom)
 plan(multisession, workers = availableCores() / 2)
 
 
@@ -21,8 +22,8 @@ if (Sys.info()[['user']] == "keppele") {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 }
 spp <- c("yelloweye rockfish", "pacific cod") # example species
-# data_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) %>% filter(year > 2016)
-data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3), dir, min_year = 2016) # using years since 2016 for faster testing
+ye_hs <- import_survey_sets("yelloweye rockfish", ssid = c(3), dir, min_year = 2016)
+data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for faster testing
 names(data_all) <- spp
 
 # get MPA spatial file from original shapefile (created by Dana from gdb from Katie Gale)
@@ -40,7 +41,37 @@ trawl <- closed_areas(closed, fishery = "trawl")
 # clip survey sets data by applicable MPA restricted zones
 data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 
-### TO DO: FIX SO RUNS FOR SINGLE SPECIES
+
+#-------------------------------------------------
+# TO DO: after running clip_by_mpa, calculate new area_km2 for each stratum/ssid (=grouping code) - should only need to do this once
+# then join into original data_all for calculating density in calc_bio() based on clipped extent
+
+# using the active block syn shape files
+syn <- "data/SynSurveyShps"
+hs <- sf::st_read(dsn=syn, layer = "Syn_HS_active") %>% st_transform(crs = 3156)
+qcs <- sf::st_read(dsn=syn, layer = "Syn_QCS_active") %>% st_transform(crs = 3156)
+wchg <- sf::st_read(dsn=syn, layer = "Syn_WCHG_active") %>% st_transform(crs = 3156)
+wcvi <- sf::st_read(dsn=syn, layer = "Syn_WCVI_active") %>% st_transform(crs = 3156)
+
+#original areas (in m2, actually a bit smaller than values in area_km2 in survey sets data) TO DO: FIND OUT WHY
+survey_area <- function()
+
+hs_area <- hs %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+qcs_area <- qcs %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+wchg_area <- wchg %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+wcvi_area <- wcvi %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+
+hs_exclude <- clip_survey(hs)
+qcs_exclude <- clip_survey(qcs)
+wchg_exclude <- clip_survey(wchg)
+wcvi_exclude <- clip_survey(wcvi)
+
+hs_exclude_area <- hs_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+qcs_exclude_area <- qcs_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+wchg_exclude_area <- wchg_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+wcvi_exclude_area <- wcvi_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
+
+### TO DO: FIX SO it RUNS FOR SINGLE SPECIES
 
 # d <- design_biomass(dat)
 # m <- sdmTMB_biomass(dat)
@@ -69,20 +100,20 @@ get_indices <- function(dat, dat_exclude = NULL, ssid = c(1, 3, 4, 16), design =
     d <- furrr::future_map_dfr(dat, design_biomass)
     if (!is.null(dat_exclude)) {
       d_exclude <- furrr::future_map_dfr(dat_exclude, design_biomass)
-    } else d_exclude <- NULL
+    }
   }
 
   if (model){
     m <- furrr::future_map_dfr(dat, sdmTMB_biomass)
     if (!is.null(dat_exclude)) {
       m_exclude <- furrr::future_map_dfr(dat_exclude, sdmTMB_biomass)
-      } else m_exclude <- NULL
+      }
   }
   rbind(if(exists("d")) d, if(exists("d_exclude")) d_exclude, if(exists("m")) m, if(exists("m_exclude")) m_exclude)
 }
 
 
-i <- get_indices(data_all)
+i <- get_indices(data_all, data_exclude)
 
 
 # ------------------------------ PLOTTING -------------------------------------
