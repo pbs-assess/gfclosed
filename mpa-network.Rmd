@@ -15,6 +15,7 @@ library(ggplot2)
 library(RColorBrewer)
 library(sf)
 library(rgdal)
+library(magrittr)
 devtools::load_all(".")
 theme_set(theme_bw())
 cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
@@ -25,14 +26,13 @@ First, bring in MPA network shapefile (created from geodatabase file received fr
 
 ``` {r nsb_mpa, results = FALSE}
 closed <- sf::st_read(dsn="data/NSB_MPA", layer = "NSB_MPA") %>%
-  select(-OBJECTID) %>%  # remove extra field added by ArcGIS in shapefile export
-  st_transform(crs = 4326)
-names(closed) <- c(names(st_read(dsn="data/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry") # revert truncated names
+  select(-OBJECTID)   # remove extra field added by ArcGIS in shapefile export
+names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry") # revert truncated names
 
-BC_coast_albers <- sf::st_read(dsn = "data/baselayer_shps", layer = "BC_coast_albers")
-g <- ggplot() + geom_sf(data = st_transform(BC_coast_albers, crs = 4326), aes(fill = "BC coast")) 
+coastUTM <- sf::st_read(dsn = "data/baselayer_shps", layer = "BC_coast_UTM9")
+g <- ggplot() + geom_sf(data = coastUTM, aes(fill = "BC coast")) 
 g + geom_sf(data = closed, aes(fill = "MPA network")) +
-  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55)) +
+  coord_sf(xlim = c(-134.5, -123), ylim = c(48, 55), crs = sf::st_crs(4326)) +
   scale_fill_manual(values = c("gray80", paste0(cols[6], "60")), name= "", labels=c("BC coast", "Proposed MPA network")) +
   ggtitle("Proposed MPA Network Zones")
 ```
@@ -41,10 +41,10 @@ g + geom_sf(data = closed, aes(fill = "MPA network")) +
 Only some of the zones would restrict commercial bottom trawl fishery activity, and potentially bottom trawl survey activity. Filtering for just those zones:
 
 ```{r trawl_restriction}
-trawl <- gfclosed::closed_areas(closed, fishery = "trawl")
+trawl <- closed_areas(closed, fishery = "trawl")
 g + geom_sf(data = closed, aes(fill = "Proposed MPA network")) +
   geom_sf(data = trawl, aes(fill = "Proposed bottom trawl \nrestricted zones"))  +
-  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55)) +
+  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55), crs = sf::st_crs(4326)) +
   scale_colour_manual("black") +
   scale_fill_manual(values = c("gray80", cols[6], paste0(cols[6], "20")), breaks = c("Proposed MPA network", "Proposed bottom trawl \nrestricted zones"), name= "") +
   ggtitle("Proposed MPA Network Commercial \nTrawl Restricted Zones") +
@@ -79,10 +79,28 @@ g +
   geom_sf(data = qcs, aes(fill = "Queen Charlotte Sound survey")) +
   geom_sf(data = wchg, aes(fill = "West Coast Haida Gwaii survey")) +
   geom_sf(data = wcvi, aes(fill = "West Coast Vancouver Island survey")) +
-  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55)) +
+  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55), crs = sf::st_crs(4326)) +
   scale_colour_manual("black") +
   scale_fill_manual(values = c("gray80", paste0(cols[2], "60"), paste0(cols[6], "60"), paste0(cols[3], "60"), paste0(cols[1], "60"), paste0(cols[4], "60")), breaks = c("Proposed bottom trawl restricted zones", "Hecate Strait survey", "Queen Charlotte Sound survey", "West Coast Haida Gwaii survey", "West Coast Vancouver Island survey"), name= "") +
   ggtitle("Synoptic Trawl Survey Boundaries with \nproposed MPA network trawl restricted Zones")
+```
+
+```{r clip trawl surveys, results = FALSE}
+syn <- "data/SynSurveyShps"
+hs <- sf::st_read(dsn=syn, layer = "Syn_HS_active")
+qcs <- sf::st_read(dsn=syn, layer = "Syn_QCS_active")
+wchg <- sf::st_read(dsn=syn, layer = "Syn_WCHG_active")
+wcvi <- sf::st_read(dsn=syn, layer = "Syn_WCVI_active")
+
+g + 
+  geom_sf(data = trawl, aes(fill = "Proposed bottom trawl restricted zones")) + 
+  geom_sf(data = hs, aes(fill = "Hecate Strait survey")) +
+  geom_sf(data = qcs, aes(fill = "Queen Charlotte Sound survey")) +
+  geom_sf(data = wchg, aes(fill = "West Coast Haida Gwaii survey")) +
+  geom_sf(data = wcvi, aes(fill = "West Coast Vancouver Island survey")) +
+  coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55), crs = sf::st_crs(4326))  +
+  scale_colour_manual("black") +
+  scale_fill_manual(values = c("gray80", paste0(cols[2], "60"), paste0(cols[6], "60"), paste0(cols[3], "60"), paste0(cols[1], "60"), paste0(cols[4], "60")), breaks = c("Proposed bottom trawl restricted zones", "Hecate Strait survey", "Queen Charlotte Sound survey", "West Coast Haida Gwaii survey", "West Coast Vancouver Island survey"), name= "")
 ```
 
 
@@ -108,7 +126,7 @@ g + geom_sf(data = ll, aes(fill = "Proposed longline restricted zones")) +
 
 Read in the survey data for an example species, yelloweye rockfish. `survey_sets()` imports data for a given species from a cached .rds file if it exists, otherwise could run gfdata::get_survey_sets() for any gf species when connected to DFO databases))
 ```{r survey_data}
-survey_sets <- import_survey_sets("yelloweye rockfish", ssid = c(1, 3, 4, 16, 22, 36), data_cache = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/")
+survey_sets <- import_survey_sets("yelloweye rockfish", ssid = c(1, 3, 4, 16, 22, 36), dir = dir)
 
 g + geom_point(data = survey_sets, aes(x = longitude, y = latitude), size = 0.1, pch = 4, color = "dark blue") +
   coord_sf(xlim = c(-134.5, -122), ylim = c(48, 55)) +
