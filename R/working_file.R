@@ -173,6 +173,30 @@ st_biomass <- function(dat, fishery = "trawl",
       survey == "SYN WCHG" ~ 16
     ))
   # prepare MPA-reduced survey grid for each year
+  #
+  # reduced_synoptic_grid <- readRDS("data/MPA_reduced_syn_surveys.rds")[[ssid]]
+  #
+  # if (ssid %in% c(1, 3, 4, 16)) {
+  #   survey_grid <- synoptic_grid
+  #   reduced_survey_grid <- reduced_synoptic_grid
+  # }
+  # if (ssid == 22) {
+  #   survey_grid <- gfplot::hbll_n_grid$grid
+  #   stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
+  # }
+  # if (ssid == 36) {
+  #   survey_grid <- gfplot::hbll_s_grid$grid
+  #   stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
+  # }
+  #
+  # survey_grid <- survey_grid %>%
+  #   dplyr::filter(survey_series_id == ssid) %>%
+  #   dplyr::select(.data$X, .data$Y) %>%
+  #   expand_prediction_grid(years = unique(dat$year))
+  # reduced_survey_grid <- reduced_survey_grid %>%
+  #   dplyr::select(geometry) %>%
+  #   expand_prediction_grid(years = unique(dat$year))
+
   reduced_synoptic_grid <- gfplot::synoptic_grid %>%
     mutate(survey_series_id = case_when(
       survey == "SYN QCS" ~ 1,
@@ -180,6 +204,7 @@ st_biomass <- function(dat, fishery = "trawl",
       survey == "SYN WCVI" ~ 4,
       survey == "SYN WCHG" ~ 16
     )) %>% sf::st_as_sf(coords = c("X", "Y"), agr = "constant", crs = st_crs(3156), remove = FALSE) %>%
+    mutate(ID = seq(1:nrow(gfplot::synoptic_grid))) %>%
     clip_survey(fishery = "trawl")
 
   if (ssid %in% c(1, 3, 4, 16)) {
@@ -229,7 +254,7 @@ st_biomass <- function(dat, fishery = "trawl",
 }
 
 
-clip_survey <- function(survey_dat, fishery = "trawl"){
+clip_survey <- function(survey_dat, fishery = "trawl", id_col = "block"){
   int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,"block"]))
   excluded <- survey_dat$block[unlist(int)]
   survey_exclude <- filter(survey_dat, !block %in% excluded)

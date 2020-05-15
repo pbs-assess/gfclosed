@@ -49,7 +49,7 @@ data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 # Using the active block syn shape files updated from 2019 survey
 import_survey_shps <- function(shp_name){
   syn <- "data/SynSurveyShps"
-  col <- c("block", "grouping_code", "selection ind", "survey_series_id", "survey_series_desc", "survey_series_abbrev", "geometry")
+  col <- c("block", "grouping_code", "selection_ind", "survey_series_id", "survey_series_desc", "survey_series_abbrev", "geometry")
   sf::st_read(dsn=syn, layer = shp_name) %>%
     st_transform(crs = 3156) %>%
     set_names(col)
@@ -57,13 +57,16 @@ import_survey_shps <- function(shp_name){
 
 syn_names <- c("HS_active_2020", "QCS_active_2020", "WCHG_active_2020", "WCVI_active_2020")
 syn_surveys <- map(syn_names, import_survey_shps)
+names(syn_surveys) <- c("hs", "qcs", "wchg", "wcvi")
 syn_surveys_exclude <- map(syn_surveys, clip_survey)
+# saveRDS(syn_surveys_exclude, "data/MPA_reduced_syn_surveys.rds")
+# syn_surveys_exclude <- readRDS("data/MPA_reduced_syn_surveys.rds")
 
 # Determine area of original survey grid and MPA-clipped survey grid
 survey_area <- function(dat){
-  g <- dat %>% group_by(GROUPING_CO) %>% group_keys()
-  area <- dat %>% group_split(GROUPING_CO)  %>% map(st_combine)  %>% map(st_area) %>% unlist()/1000000
-  area <- data.frame(grouping_code = g$GROUPING_CO, area)
+  g <- dat %>% group_by(grouping_code) %>% group_keys()
+  area <- dat %>% group_split(grouping_code)  %>% map(st_combine)  %>% map(st_area) %>% unlist()/1000000
+  area <- data.frame(grouping_code = g$grouping_code, area)
 }
 
 shp_area <- map_df(syn_surveys, survey_area) %>% rename(shp_area = area)
