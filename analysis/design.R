@@ -13,17 +13,14 @@ library(lwgeom)
 plan(multisession, workers = availableCores() / 2)
 
 
-# trawl <- closed_areas(fishery = "trawl")
-# ll <- closed_areas(fishery = "longline")
-# trap <- closed_areas(fishery = "trap")
 
 # get survey set data
 if (Sys.info()[['user']] == "keppele") {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 }
 spp <- c("yelloweye rockfish", "pacific cod") # example species
-ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016)
-data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for faster testing
+ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) # smaller dataset for testing
+data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for testing
 names(data_all) <- spp
 
 # get MPA spatial file from original shapefile (created by Dana from gdb from Katie Gale)
@@ -35,18 +32,20 @@ names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", 
   closed <- readRDS("data/closed.rds")
 }
 
-# filter closed areas spatial file for fishery type/gear of interest
+# Filter closed areas spatial file for restricted areas by fishery type/gear of interest.
+# This is for later plotting. Clip_by_mpa() will determine appropriate zones to clip by based on input ssid's or fishery
 trawl <- closed_areas(closed, fishery = "trawl")
+# ll <- closed_areas(fishery = "longline")
+# trap <- closed_areas(fishery = "trap") # not yet functional for trap
 
-# clip survey sets data by applicable MPA restricted zones
+# Clip survey sets data by applicable MPA restricted zones
 data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 
-
 #-------------------------------------------------
-# TO DO: after running clip_by_mpa, calculate new area_km2 for each stratum/ssid (=grouping code) - should only need to do this once
+# Calculate new area_km2 for each stratum/ssid (=grouping code) - should only need to do this once
 # then join into original data_all for calculating density in calc_bio() based on clipped extent
 
-# using the active block syn shape files updated from 2019 survey
+# Using the active block syn shape files updated from 2019 survey
 syn <- "data/SynSurveyShps"
 
 hs <- sf::st_read(dsn=syn, layer = "HS_active_2020") %>% st_transform(crs = 3156)
@@ -54,43 +53,28 @@ qcs <- sf::st_read(dsn=syn, layer = "QCS_active_2020") %>% st_transform(crs = 31
 wchg <- sf::st_read(dsn=syn, layer = "WCHG_active_2020") %>% st_transform(crs = 3156)
 wcvi <- sf::st_read(dsn=syn, layer = "WCVI_active_2020") %>% st_transform(crs = 3156)
 
+# Create list of spatial synoptic survey objects and reduced-area synoptic survey objects
 syn_surveys <- list(hs, qcs, wchg, wcvi)
-names(syn_surveys) <- c("hs", "qcs", "wchg", "wcvi")
 
+syn_surveys_exclude <- map(syn_surveys, clip_survey)
 
+# Determine area of original survey grid and MPA-clipped survey grid
 survey_area <- function(dat){
   g <- dat %>% group_by(GROUPING_CO) %>% group_keys()
-  area <- dat %>% group_split(GROUPING_CO)  %>% map(st_combine)  %>% map(st_area) %>% unlist()
+  area <- dat %>% group_split(GROUPING_CO)  %>% map(st_combine)  %>% map(st_area) %>% unlist()/1000000
   area <- data.frame(grouping_code = g$GROUPING_CO, area)
 }
 
-shp_area <- map_df(syn_surveys, survey_area)
+shp_area <- map_df(syn_surveys, survey_area) %>% rename(shp_area = area)
 
+shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(mpa_reduced_shp_area = area)
 
-
-
-hs_exclude <- clip_survey(hs)
-qcs_exclude <- clip_survey(qcs)
-wchg_exclude <- clip_survey(wchg)
-wcvi_exclude <- clip_survey(wcvi)
-
-hs_exclude_area <- hs_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
-qcs_exclude_area <- qcs_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
-wchg_exclude_area <- wchg_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
-wcvi_exclude_area <- wcvi_exclude %>% group_split(GROUPING_CO) %>% map(st_combine) %>% map(st_area)
-
+# Compare calculated areas from active survey block shapefiles against survey grid area reported in gfbio.
 data_all_df <- data_all %>% as.data.frame() %>% select(-geometry)
 gfbio_areas <- unique(data_all_df[c("survey_series_id", "grouping_code", "area_km2")]) %>%
   arrange(survey_series_id, area_km2)
+area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_exclude_area)
 
-area_summary <- right_join(shp_area, gfbio_areas)
-
-survey_series_id <- c(rep(1, 8), rep(3, 4), rep(4, 4), rep(16, 4))
-original_areas <- c(sort(unlist(qcs_area)/1000000), sort(unlist(hs_area)/1000000), sort(unlist(wcvi_area)/1000000), sort( unlist(wchg_area)/1000000))
-reduced_areas <- c(sort(unlist(qcs_exclude_area)/1000000), sort(unlist(hs_exclude_area)/1000000), sort(unlist(wcvi_exclude_area)/1000000), sort(unlist(wchg_exclude_area)/1000000))
-area_summary <- data.frame(survey_series_id, original_areas, reduced_areas)
-areas <- cbind(area_summary, gfbio_areas)
-names(areas) <- c("ssid", "shp_original_area", "shp_mpa_reduced_area", "ssid", "grouping_code", "gfbio_area_km2")
 ### TO DO: FIX SO it RUNS FOR SINGLE SPECIES
 
 # d <- design_biomass(dat)
