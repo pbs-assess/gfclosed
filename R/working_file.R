@@ -96,7 +96,7 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
 #' @export
 clip_by_mpa <- function(data = survey_sets, ssid){
   data <- data %>% filter(survey_series_id %in% ssid)
-  message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name))
+  message(nrow(data), " unclipped fishing events in ", unique(data$survey_series_desc), " survey for ", unique(data$species_common_name), " since ", min(data$year))
   int <- suppressMessages(sf::st_intersects(closed_areas(ssid = ssid), data[,"fishing_event_id"]))
   excluded <- data$fishing_event_id[unlist(int)]
   data_exclude <- filter(data, !fishing_event_id %in% excluded)
