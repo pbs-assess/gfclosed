@@ -15,7 +15,7 @@ library(rgdal)
 #' @export
 
 closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, level = c("X", "C"), out_crs = 3156){
-  closed %<>% sf::st_transform(crs = out_crs)
+  mpa_network_shp %<>% sf::st_transform(crs = out_crs)
   if (ssid %in% c(1, 3, 4, 16) && is.null(fishery) || is.null(ssid) && fishery == "trawl"){
     closed <- mpa_network_shp %>%
       select(UID, hu_co_demersalfishing_bottomtrawling_d) %>%
@@ -24,7 +24,7 @@ closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, 
     closed <- mpa_network_shp %>%
       select(UID, hu_co_demersalfishing_bottomlongline_d) %>%
       filter(hu_co_demersalfishing_bottomlongline_d %in% level)}
-  # if(ssid %in% c()){  # sablefish surveys
+  # else if(ssid %in% c()){  # sablefish surveys
   #   closed <- mpa_network_shp %>%
   #     select(UID, hu_co_demersalfishing_sabletrapcom_d) %>%
   #     filter(hu_co_demersalfishing_sabletrapcom_d %in% level)}
@@ -139,7 +139,7 @@ expand_prediction_grid <- function(grid, years) { # from yelloweye-inside utils
 #' @export
 #'
 #' @examples
-st_biomass <- function(dat,
+st_biomass <- function(dat, fishery = "trawl",
   n_knots = 150, anisotropy = FALSE, silent = TRUE,
   bias_correct = FALSE, species_name){
 
@@ -172,8 +172,19 @@ st_biomass <- function(dat,
       survey == "SYN WCVI" ~ 4,
       survey == "SYN WCHG" ~ 16
     ))
+  # prepare MPA-reduced survey grid for each year
+  reduced_synoptic_grid <- gfplot::synoptic_grid %>%
+    mutate(survey_series_id = case_when(
+      survey == "SYN QCS" ~ 1,
+      survey == "SYN HS" ~ 3,
+      survey == "SYN WCVI" ~ 4,
+      survey == "SYN WCHG" ~ 16
+    )) %>% sf::st_as_sf(coords = c("X", "Y"), agr = "constant", crs = st_crs(3156), remove = FALSE) %>%
+    clip_survey(fishery = "trawl")
+
   if (ssid %in% c(1, 3, 4, 16)) {
     survey_grid <- synoptic_grid
+    reduced_survey_grid <- reduced_synoptic_grid
   }
   if (ssid == 22) {
     survey_grid <- gfplot::hbll_n_grid$grid
@@ -184,7 +195,7 @@ st_biomass <- function(dat,
     stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
   }
 
-  survey_grid <- survey_grid %>%
+  survey_grid <- survey_blockgrid %>%
     dplyr::filter(survey_series_id == ssid) %>%
     dplyr::select(.data$X, .data$Y) %>%
     expand_prediction_grid(years = unique(dat$year))
@@ -203,6 +214,7 @@ st_biomass <- function(dat,
   tictoc::toc()
 
   predictions <- stats::predict(m, newdata = survey_grid, return_tmb_object = TRUE)
+  restricted_predictions <- stats::predict(m, newdata = reduced_survey_grid, return_tmb_object = TRUE)
   index <- sdmTMB::get_index(predictions, bias_correct = bias_correct)
   index <- dplyr::mutate(index, cv = sqrt(exp(se^2) - 1))
   list(
@@ -216,17 +228,12 @@ st_biomass <- function(dat,
   )
 }
 
-clip_survey <- function(){
-
-
-}
 
 clip_survey <- function(survey_dat, fishery = "trawl"){
-  trawl %<>% st_transform(crs = 3156)
-  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,"BLOCK_DESIG"]))
-  excluded <- survey_dat$BLOCK_DESIG[unlist(int)]
-  survey_exclude <- filter(survey_dat, !BLOCK_DESIG %in% excluded)
-  removed <- filter(survey_dat, BLOCK_DESIG %in% excluded)
+  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,"block"]))
+  excluded <- survey_dat$block[unlist(int)]
+  survey_exclude <- filter(survey_dat, !block %in% excluded)
+  removed <- filter(survey_dat, block %in% excluded)
   message(nrow(removed), " blocks removed of ", nrow(survey_dat), " for survey series id ", unique(survey_dat$SURVEY_SERI))
   return(survey_exclude)
 }
