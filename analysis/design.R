@@ -19,7 +19,7 @@ if (Sys.info()[['user']] == "keppele") {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 }
 spp <- c("yelloweye rockfish", "pacific cod") # example species
-ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) # smaller dataset for testing
+ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) # smaller dataset for testing with one species
 data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for testing
 names(data_all) <- spp
 
@@ -45,17 +45,18 @@ data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 # Calculate new area_km2 for each stratum/ssid (=grouping code) - should only need to do this once
 # then join into original data_all for calculating density in calc_bio() based on clipped extent
 
-# Using the active block syn shape files updated from 2019 survey
-syn <- "data/SynSurveyShps"
-
-hs <- sf::st_read(dsn=syn, layer = "HS_active_2020") %>% st_transform(crs = 3156)
-qcs <- sf::st_read(dsn=syn, layer = "QCS_active_2020") %>% st_transform(crs = 3156)
-wchg <- sf::st_read(dsn=syn, layer = "WCHG_active_2020") %>% st_transform(crs = 3156)
-wcvi <- sf::st_read(dsn=syn, layer = "WCVI_active_2020") %>% st_transform(crs = 3156)
-
 # Create list of spatial synoptic survey objects and reduced-area synoptic survey objects
-syn_surveys <- list(hs, qcs, wchg, wcvi)
+# Using the active block syn shape files updated from 2019 survey
+import_survey_shps <- function(shp_name){
+  syn <- "data/SynSurveyShps"
+  col <- c("block", "grouping_code", "selection ind", "survey_series_id", "survey_series_desc", "survey_series_abbrev", "geometry")
+  sf::st_read(dsn=syn, layer = shp_name) %>%
+    st_transform(crs = 3156) %>%
+    set_names(col)
+}
 
+syn_names <- c("HS_active_2020", "QCS_active_2020", "WCHG_active_2020", "WCVI_active_2020")
+syn_surveys <- map(syn_names, import_survey_shps)
 syn_surveys_exclude <- map(syn_surveys, clip_survey)
 
 # Determine area of original survey grid and MPA-clipped survey grid
@@ -66,14 +67,18 @@ survey_area <- function(dat){
 }
 
 shp_area <- map_df(syn_surveys, survey_area) %>% rename(shp_area = area)
-
-shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(mpa_reduced_shp_area = area)
+shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(restricted_area = area)
 
 # Compare calculated areas from active survey block shapefiles against survey grid area reported in gfbio.
+# TO DO: Connect to VPN, pull gfbio GROUPING table and update YE & pcod cache_pbs_data() .rds files.
+# Recheck area summary.
 data_all_df <- data_all %>% as.data.frame() %>% select(-geometry)
 gfbio_areas <- unique(data_all_df[c("survey_series_id", "grouping_code", "area_km2")]) %>%
   arrange(survey_series_id, area_km2)
 area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_exclude_area)
+
+# Join MPA-reduced survey area by stratum to data_all
+data_all <- data_all %>% left_join(shp_exclude_area)
 
 ### TO DO: FIX SO it RUNS FOR SINGLE SPECIES
 
