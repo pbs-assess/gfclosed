@@ -255,11 +255,11 @@ st_biomass <- function(dat, fishery = "trawl",
 
 
 clip_survey <- function(survey_dat, fishery = "trawl", id_col = "block"){
-  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,"block"]))
-  excluded <- survey_dat$block[unlist(int)]
-  survey_exclude <- filter(survey_dat, !block %in% excluded)
-  removed <- filter(survey_dat, block %in% excluded)
-  message(nrow(removed), " blocks removed of ", nrow(survey_dat), " for survey series id ", unique(survey_dat$SURVEY_SERI))
+  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,id_col]))
+  excluded <- survey_dat[[id_col]][unlist(int)]
+  survey_exclude <- filter(survey_dat, !survey_dat[[id_col]] %in% excluded)
+  removed <- filter(survey_dat, survey_dat[[id_col]] %in% excluded)
+  message(nrow(removed), " blocks removed of ", nrow(survey_dat), " for survey series id ", unique(survey_dat$survey_series_id))
   return(survey_exclude)
 }
 
