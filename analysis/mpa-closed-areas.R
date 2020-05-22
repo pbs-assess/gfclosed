@@ -23,7 +23,7 @@ ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_
 data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for testing
 names(data_all) <- spp
 
-# get MPA spatial file from original shapefile (created by Dana from gdb from Katie Gale)
+# create MPA spatial object from original MPA shapefile (created by Dana from gdb from Katie Gale)
 if (Sys.info()[['user']] == "keppele") {
 closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
   select(-OBJECTID_1)
@@ -75,13 +75,19 @@ shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(restrict
 # Compare calculated areas from active survey block shapefiles against survey grid area reported in gfbio.
 # TO DO: Connect to VPN, pull gfbio GROUPING table and update YE & pcod cache_pbs_data() .rds files.
 # Recheck area summary.
-data_all_df <- data_all %>% as.data.frame() %>% select(-geometry)
+data_all_df <- data_all[[1]] %>% as.data.frame() %>% select(-geometry)
 gfbio_areas <- unique(data_all_df[c("survey_series_id", "grouping_code", "area_km2")]) %>%
   arrange(survey_series_id, area_km2)
 area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_exclude_area)
+# saveRDS(area_summary, "data/area_summary.rds")
 
-# Join MPA-reduced survey area by stratum to data_all
-data_all <- data_all %>% left_join(shp_exclude_area)
+
+# Join MPA-reduced survey area by stratum to data_all (for design-based analysis)
+
+data_all <- data_all %>% map(left_join(shp_exclude_area)) #TO DO: fix this!
+ye_all <- ye_all %>% left_join(shp_exclude_area)
+
+ggplot(reduced_synoptic_grid) + geom_sf(aes()) +coord_sf(xlim = c(-133.2, -129), ylim = c(52.5, 54.5), crs = sf::st_crs(4326))
 
 ### TO DO: FIX SO it RUNS FOR SINGLE SPECIES
 
