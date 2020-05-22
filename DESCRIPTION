@@ -21,5 +21,11 @@ Imports:
     sf,
     sdmTMB,
     gfplot,
-    gfdata
+    gfdata,
+    tidyr,
+    magrittr,
+    future,
+    purrr,
+    furrr,
+    lwgeom
 RoxygenNote: 7.1.0
