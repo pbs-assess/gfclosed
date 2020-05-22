@@ -83,9 +83,9 @@ area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_exclude_are
 
 
 # Join MPA-reduced survey area by stratum to data_all (for design-based analysis)
-
-data_all <- data_all %>% map(left_join(shp_exclude_area)) #TO DO: fix this!
-ye_all <- ye_all %>% left_join(shp_exclude_area)
+shp_exclude_area_list <- replicate(length(data_all), shp_exclude_area, simplify = FALSE)
+data_all_w_reduced <- map2(data_all, shp_exclude_area_list, left_join)
+data_exclude_w_reduced <- map2(data_exclude, shp_exclude_area_list, left_join)
 
 ggplot(reduced_synoptic_grid) + geom_sf(aes()) +coord_sf(xlim = c(-133.2, -129), ylim = c(52.5, 54.5), crs = sf::st_crs(4326))
 
