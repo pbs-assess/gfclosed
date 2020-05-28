@@ -1,21 +1,10 @@
-# remember to load functions locally; must have dat filtered by syn trawl surveys only
-library(dplyr)
-library(ggplot2)
-library(sdmTMB)
-library(gfplot)
-library(sf)
-library(tidyr)
-library(magrittr)
-library(future)
-library(purrr)
-library(furrr)
-library(lwgeom)
+
 plan(multisession, workers = availableCores() / 2)
 
 
 
 # get survey set data
-if (Sys.info()[['user']] == "keppele") {
+if (Sys.info()[['user']] %in% c("KeppelE", "keppele" )) {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 }
 spp <- c("yelloweye rockfish", "pacific cod") # example species
