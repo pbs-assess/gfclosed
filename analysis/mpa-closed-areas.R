@@ -92,7 +92,7 @@ shp_exclude_area_list <- replicate(length(data_all), shp_exclude_area, simplify 
 data_all_w_reduced <- map2(data_all, shp_exclude_area_list, left_join)
 data_exclude_w_reduced <- map2(data_exclude, shp_exclude_area_list, left_join)
 
-ggplot(reduced_synoptic_grid) + geom_sf(aes()) +coord_sf(xlim = c(-133.2, -129), ylim = c(52.5, 54.5), crs = sf::st_crs(4326))
+#ggplot(reduced_synoptic_grid) + geom_sf(aes()) +coord_sf(xlim = c(-133.2, -129), ylim = c(52.5, 54.5), crs = sf::st_crs(4326))
 
 ### TO DO: FIX SO it RUNS FOR SINGLE SPECIES
 
@@ -166,15 +166,31 @@ cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
 # hbll_out_s <- sf::st_read(dsn=hbll, layer = "PHMA_S_boundaries")
 
 # Plot survey boundaries and trawl-restricting MPAs
-ggplot() + geom_sf(data = coastUTM) +
+g <- ggplot() + geom_sf(data = coastUTM)
+
+g +
   geom_sf(data = hs, fill = paste0(cols[3], "60")) +
-  geom_sf(data = qcs, fill = paste0(cols[2], "60")) +
-  geom_sf(data = wchg, fill = paste0(cols[4], "60")) +
-  geom_sf(data = wcvi, fill = paste0(cols[1], "60")) +
-  geom_sf(data = trawl, fill = paste0(cols[6], "60")) +
-  coord_sf(xlim = c(-134, -123), ylim = c(48, 55), crs = sf::st_crs(4326)) +
+  #
+  # geom_sf(data = qcs, fill = paste0(cols[2], "60")) +
+  # geom_sf(data = wchg, fill = paste0(cols[4], "60")) +
+  # geom_sf(data = wcvi, fill = paste0(cols[1], "60")) +
+  # geom_sf(data = trawl, fill = paste0(cols[6], "60")) +
+  geom_sf(data = reduced_synoptic_grid, fill = paste0(cols[5])) +
+  coord_sf(xlim = c(-134, -123), ylim = c(48, 55), crs = sf::st_crs(4326)) #+
+# coord_sf(xlim =c(360, 653), ylim = c(5275, 6155), crs = sf::st_crs(3156)) +
+#ggtitle("Proposed bottom trawl restriction zones in MPA network")
+
+g +
+  #geom_sf(data = hs, fill = hs$grouping_code) +
+  #
+  # geom_sf(data = qcs, fill = paste0(cols[2], "60")) +
+  # geom_sf(data = wchg, fill = paste0(cols[4], "60")) +
+  # geom_sf(data = wcvi, fill = paste0(cols[1], "60")) +
+  # geom_sf(data = trawl, fill = paste0(cols[6], "60")) +
+  ggplot() + geom_sf(data = gfplot::synoptic_grid)
+  coord_sf(xlim = c(-134, -123), ylim = c(48, 55), crs = sf::st_crs(4326)) #+
   # coord_sf(xlim =c(360, 653), ylim = c(5275, 6155), crs = sf::st_crs(3156)) +
-  ggtitle("Proposed bottom trawl restriction zones in MPA network")
+  #ggtitle("Proposed bottom trawl restriction zones in MPA network")
 
 # Plot survey data points, overlain with reduced survey data set
 ggplot() + geom_sf(data = coastUTM) +
