@@ -165,47 +165,9 @@ st_biomass <- function(dat, fishery = "trawl",
   }
 
   # prepare survey grid for each year
-  synoptic_grid <- gfplot::synoptic_grid %>%
-    mutate(survey_series_id = case_when(
-      survey == "SYN QCS" ~ 1,
-      survey == "SYN HS" ~ 3,
-      survey == "SYN WCVI" ~ 4,
-      survey == "SYN WCHG" ~ 16
-    ))
-  # prepare MPA-reduced survey grid for each year
-  #
-  # reduced_synoptic_grid <- readRDS("data/MPA_reduced_syn_surveys.rds")[[ssid]]
-  #
-  # if (ssid %in% c(1, 3, 4, 16)) {
-  #   survey_grid <- synoptic_grid
-  #   reduced_survey_grid <- reduced_synoptic_grid
-  # }
-  # if (ssid == 22) {
-  #   survey_grid <- gfplot::hbll_n_grid$grid
-  #   stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
-  # }
-  # if (ssid == 36) {
-  #   survey_grid <- gfplot::hbll_s_grid$grid
-  #   stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
-  # }
-  #
-  # survey_grid <- survey_grid %>%
-  #   dplyr::filter(survey_series_id == ssid) %>%
-  #   dplyr::select(.data$X, .data$Y) %>%
-  #   expand_prediction_grid(years = unique(dat$year))
-  # reduced_survey_grid <- reduced_survey_grid %>%
-  #   dplyr::select(geometry) %>%
-  #   expand_prediction_grid(years = unique(dat$year))
 
-  reduced_synoptic_grid <- gfplot::synoptic_grid %>%
-    mutate(survey_series_id = case_when(
-      survey == "SYN QCS" ~ 1,
-      survey == "SYN HS" ~ 3,
-      survey == "SYN WCVI" ~ 4,
-      survey == "SYN WCHG" ~ 16
-    )) %>% sf::st_as_sf(coords = c("X", "Y"), agr = "constant", crs = st_crs(3156), remove = FALSE) %>%
-    mutate(ID = seq(1:nrow(gfplot::synoptic_grid))) %>%
-    clip_survey(fishery = "trawl")
+  synoptic_grid <- readRDS("data/syn_grid.rds")
+  reduced_synoptic_grid <- readRDS("data/syn_grid_exclude.rds")
 
   if (ssid %in% c(1, 3, 4, 16)) {
     survey_grid <- synoptic_grid
@@ -220,8 +182,15 @@ st_biomass <- function(dat, fishery = "trawl",
     stop("Non-synoptic surveys are not implemented yet.", call. = FALSE)
   }
 
-  survey_grid <- survey_blockgrid %>%
+  survey_grid <- survey_grid %>%
     dplyr::filter(survey_series_id == ssid) %>%
+    as.data.frame() %>%
+    dplyr::select(.data$X, .data$Y) %>%
+    expand_prediction_grid(years = unique(dat$year))
+
+  reduced_survey_grid <- reduced_survey_grid %>%
+    dplyr::filter(survey_series_id == ssid) %>%
+    as.data.frame() %>%
     dplyr::select(.data$X, .data$Y) %>%
     expand_prediction_grid(years = unique(dat$year))
 
@@ -255,7 +224,7 @@ st_biomass <- function(dat, fishery = "trawl",
 
 
 clip_survey <- function(survey_dat, fishery = "trawl", id_col = "block"){
-  int <- suppressMessages(sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,id_col]))
+  int <- (sf::st_intersects(closed_areas(fishery = fishery), survey_dat[,id_col]))
   excluded <- survey_dat[[id_col]][unlist(int)]
   survey_exclude <- filter(survey_dat, !survey_dat[[id_col]] %in% excluded)
   removed <- filter(survey_dat, survey_dat[[id_col]] %in% excluded)
@@ -268,10 +237,10 @@ clip_survey <- function(survey_dat, fishery = "trawl", id_col = "block"){
 # ------------------------------------------------------------------------
 
 
-design_biomass <- function(dat, restricted = FALSE){
-  if (restricted){
-    dat <- dat %>% select(-area_km2) %>% rename(area_km2 = restricted_area)
-  }
+design_biomass <- function(dat){
+  # if (restricted){
+  #   dat <- dat %>% select(-area_km2) %>% rename(area_km2 = restricted_area)
+  # }
   dat %>%
     group_split(survey_series_id) %>%
     # purrr::map(boot_biomass) # retained here for trouble-shooting
@@ -283,12 +252,14 @@ design_biomass <- function(dat, restricted = FALSE){
 
 sdmTMB_biomass <- function(dat){
   dat %>% group_split(survey_series_id) %>%
+
+    browser()
     # purrr::map(st_biomass) # retained here for trouble-shooting
     furrr::future_map(st_biomass) %>%
     purrr::discard(is.null) %>%
     purrr::map_dfr(~mutate(analysis = "geostatistical", .$index, species_name = gsub("_", " ", .$species_name), survey = .$survey)) %>%
-    as_tibble() %>%
-    select(analysis, species_name, survey_series_desc = survey, year, index = est,
-      lwr, upr, cv)
+    as_tibble() #%>%
+    #select(analysis, species_name, survey_series_desc = survey, year, index = est,
+      #lwr, upr, cv)
 }
 

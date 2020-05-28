@@ -18,7 +18,7 @@ calc_bio <- function(dat, i = seq_len(nrow(dat))) {
 #' @param reps The number of bootstrap replicates.
 #'
 #' @export
-boot_biomass <- function(dat, reps = 1000) {
+boot_biomass <- function(dat, reps = 100) {
   out <- dat %>%
     group_by(year, species_common_name, survey_series_desc) %>%
     dplyr::do({
