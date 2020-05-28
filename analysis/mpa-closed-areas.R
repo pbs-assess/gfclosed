@@ -55,11 +55,27 @@ import_survey_shps <- function(shp_name){
     set_names(col)
 }
 
+# Create spatial objects from survey shapefiles
 syn_names <- c("HS_active_2020", "QCS_active_2020", "WCHG_active_2020", "WCVI_active_2020")
 syn_surveys <- map(syn_names, import_survey_shps)
 names(syn_surveys) <- c("hs", "qcs", "wchg", "wcvi")
-syn_surveys_exclude <- map(syn_surveys, clip_survey)
+
+make_survey_grid <- function(dat){
+  dat %>% st_centroid() %>%
+    dplyr::mutate(Y = sf::st_coordinates(.)[,1],
+      X = sf::st_coordinates(.)[,2])
+}
+
+syn_grid <- map_df(syn_surveys, make_survey_grid)
+# saveRDS(syn_surveys, "data/syn_surveys.rds")
+# saveRDS(syn_grid, "data/syn_grid.rds")
+# syn_surveys <- readRDS("data/syn_surveys.rds")
+
+# Clip by mpa restrictions
+syn_surveys_exclude <- map(syn_surveys, clip_survey, fishery = "trawl")
+syn_grid_exclude <- map_df(syn_surveys_exclude, make_survey_grid)
 # saveRDS(syn_surveys_exclude, "data/MPA_reduced_syn_surveys.rds")
+# saveRDS(syn_grid_exclude, "data/syn_grid_exclude.rds")
 # syn_surveys_exclude <- readRDS("data/MPA_reduced_syn_surveys.rds")
 
 # Determine area of original survey grid and MPA-clipped survey grid
