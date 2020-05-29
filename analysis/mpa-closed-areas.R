@@ -73,11 +73,11 @@ syn_grid <- map_df(syn_surveys, make_survey_grid)
 # syn_surveys <- readRDS("data/syn_surveys.rds")
 
 # Clip by mpa restrictions
-syn_surveys_exclude <- map(syn_surveys, clip_survey, fishery = "trawl")
-syn_grid_exclude <- map_df(syn_surveys_exclude, make_survey_grid)
-# saveRDS(syn_surveys_exclude, "data/MPA_reduced_syn_surveys.rds")
-# saveRDS(syn_grid_exclude, "data/syn_grid_exclude.rds")
-# syn_surveys_exclude <- readRDS("data/MPA_reduced_syn_surveys.rds")
+syn_surveys_reduced <- map(syn_surveys, clip_survey, fishery = "trawl")
+syn_grid_reduced <- map_df(syn_surveys_reduced, make_survey_grid)
+# saveRDS(syn_surveys_reduced, "data/MPA_reduced_syn_surveys.rds")
+# saveRDS(syn_grid_reduced, "data/syn_grid_reduced.rds")
+# syn_surveys_reduced <- readRDS("data/MPA_reduced_syn_surveys.rds")
 
 # Determine area of original survey grid and MPA-clipped survey grid
 survey_area <- function(dat){
@@ -87,7 +87,7 @@ survey_area <- function(dat){
 }
 
 shp_area <- map_df(syn_surveys, survey_area) %>% rename(shp_area = area)
-shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(restricted_area = area)
+shp_reduced_area <- map_df(syn_surveys_reduced, survey_area) %>% rename(reduced_area = area)
 
 # Compare calculated areas from active survey block shapefiles against survey grid area reported in gfbio.
 # TO DO: Connect to VPN, pull gfbio GROUPING table and update YE & pcod cache_pbs_data() .rds files.
@@ -95,14 +95,17 @@ shp_exclude_area <- map_df(syn_surveys_exclude, survey_area) %>% rename(restrict
 data_all_df <- data_all[[1]] %>% as.data.frame() %>% select(-geometry)
 gfbio_areas <- unique(data_all_df[c("survey_series_id", "grouping_code", "area_km2")]) %>%
   arrange(survey_series_id, area_km2)
-area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_exclude_area)
+area_summary <- inner_join(gfbio_areas, shp_area) %>% inner_join(shp_reduced_area)
 # saveRDS(area_summary, "data/area_summary.rds")
 
 
 # Join MPA-reduced survey area by stratum to data_all (for design-based analysis)
-shp_exclude_area_list <- replicate(length(data_all), shp_exclude_area, simplify = FALSE)
-data_all_w_reduced <- map2(data_all, shp_exclude_area_list, left_join)
-data_exclude_w_reduced <- map2(data_exclude, shp_exclude_area_list, left_join)
+shp_reduced_area_list <- replicate(length(data_all), shp_reduced_area, simplify = FALSE)
+data_all_w_reduced <- map2(data_all, shp_reduced_area_list, left_join)
+data_exclude_w_reduced <- map2(data_exclude, shp_reduced_area_list, left_join)
+
+# For single species for testing
+# ye_all <- ye_all %>% left_join(shp_reduced_area)
 
 #ggplot(reduced_synoptic_grid) + geom_sf(aes()) +coord_sf(xlim = c(-133.2, -129), ylim = c(52.5, 54.5), crs = sf::st_crs(4326))
 
@@ -115,8 +118,8 @@ data_exclude_w_reduced <- map2(data_exclude, shp_exclude_area_list, left_join)
 # design_biomass(data_all, full_survey_extent)
 # design_biomass(data_exclude, full_survey_extent)
 #
-# design_biomass(data_all, reduced_survey_extent) TO DO
-# design_biomass(data_exclude, reduced_survey_extent) TO DO
+# design_biomass(data_all, reduced_survey_extent)
+# design_biomass(data_exclude, reduced_survey_extent)
 #
 # sdmTMB_biomass(data_all, full_survey_extent)
 # sdmTMB_biomass(data_exclude, full_survey_extent)
@@ -127,28 +130,40 @@ data_exclude_w_reduced <- map2(data_exclude, shp_exclude_area_list, left_join)
 
 
 # dat = list of survey_sets data for various species
-get_indices <- function(dat, dat_exclude = NULL, ssid = c(1, 3, 4, 16), design = TRUE, model = TRUE){
+get_indices <- function(dat, dat_exclude = NULL, ssid = c(1, 3, 4, 16), design = TRUE, model = TRUE, reduced_extent = FALSE){
   # dat %<>% filter(servey_series_id %in% ssid)
   # d_exclude %<>% filter(servey_series_id %in% ssid)
 
   if (design) {
-    d <- furrr::future_map_dfr(dat, design_biomass)
+    d <- purrr::map_dfr(dat, design_biomass) %>% mutate(analysis = "design-based, all data, full survey extent")
     if (!is.null(dat_exclude)) {
-      d_exclude <- furrr::future_map_dfr(dat_exclude, design_biomass)
+      d_exclude <- purrr::map_dfr(dat_exclude, design_biomass) %>% mutate(analysis = "design-based, MPA data excluded, full survey extent")
+    }
+    if (reduced_extent) {
+      d_reduced_extent <- purrr::map_dfr(dat, design_biomass, reduced = TRUE) %>% mutate(analysis = "design-based, all data, MPA-reduced survey extent")
+      if (!is.null(dat_exclude)) {
+        d_exclude_reduced_extent <- purrr::map_dfr(dat_exclude, design_biomass, reduced = TRUE) %>% mutate(analysis = "design-based, MPA data excluded, MPA-reduced survey extent")
+      }
     }
   }
 
+
   if (model){
-    m <- furrr::future_map_dfr(dat, sdmTMB_biomass)
+    m <- purrr::map_dfr(dat, sdmTMB_biomass) %>% mutate(analysis = "model-based, all data, full survey extent")
     if (!is.null(dat_exclude)) {
-      m_exclude <- furrr::future_map_dfr(dat_exclude, sdmTMB_biomass)
+      m_exclude <- purrr::map_dfr(dat_exclude, sdmTMB_biomass) %>% mutate(analysis = "model-based, MPA data excluded, full survey extent")
       }
   }
-  rbind(if(exists("d")) d, if(exists("d_exclude")) d_exclude, if(exists("m")) m, if(exists("m_exclude")) m_exclude)
+  rbind(if(exists("d")) d,
+    if(exists("d_exclude")) d_exclude,
+    if(exists("d_reduced_extent")) d_reduced_extent,
+    if(exists("d_exclude_reduced_extent")) d_exclude_reduced_extent,
+    if(exists("m")) m,
+    if(exists("m_exclude")) m_exclude)
 }
 
 
-i <- get_indices(data_all, data_exclude)
+i <- get_indices(data_all_w_reduced, model = TRUE)
 
 
 # ------------------------------ PLOTTING -------------------------------------
