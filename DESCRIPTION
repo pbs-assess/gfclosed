@@ -20,8 +20,6 @@ Imports:
     rlang,
     sf,
     sdmTMB,
-    gfplot,
-    gfdata,
     tidyr,
     magrittr,
     future,
