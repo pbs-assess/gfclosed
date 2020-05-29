@@ -74,7 +74,7 @@ plot_survey_pts <- function(data = survey_sets, ssid = NULL){
   cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
   data <- data %>% filter(survey_series_id %in% ssid)
 
-  g <- ggplot() + geom_sf(data = st_transform(BC_UTM9, crs = 4326)) +
+  g <- ggplot() + geom_sf(data = st_transform(coastUTM, crs = 4326)) +
     geom_sf(data = closed_areas(ssid = ssid, level = c("X", "C")), fill =paste0(cols[6], "60"))
 
   if(ssid == 1){g <- g + geom_sf(data = qcs, fill = paste0(cols[3], "60"))}
@@ -167,7 +167,7 @@ st_biomass <- function(dat, fishery = "trawl",
   # prepare survey grid for each year
 
   synoptic_grid <- readRDS("data/syn_grid.rds")
-  reduced_synoptic_grid <- readRDS("data/syn_grid_exclude.rds")
+  reduced_synoptic_grid <- readRDS("data/syn_grid_reduced.rds")
 
   if (ssid %in% c(1, 3, 4, 16)) {
     survey_grid <- synoptic_grid
