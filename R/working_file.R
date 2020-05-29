@@ -237,29 +237,28 @@ clip_survey <- function(survey_dat, fishery = "trawl", id_col = "block"){
 # ------------------------------------------------------------------------
 
 
-design_biomass <- function(dat){
-  # if (restricted){
-  #   dat <- dat %>% select(-area_km2) %>% rename(area_km2 = restricted_area)
-  # }
+design_biomass <- function(dat, reps = 100, reduced = FALSE){
+  if (reduced){
+    dat <- dat %>% select(-area_km2) %>% rename(area_km2 = reduced_area)
+  }
   dat %>%
     group_split(survey_series_id) %>%
-    # purrr::map(boot_biomass) # retained here for trouble-shooting
-    furrr::future_map_dfr(boot_biomass) %>%
-    select(analysis, species_name = species_common_name, survey_series_desc, year, index = mean_boot,
+    # using future broke after updating a few packages (eg. "tibble"), so not using parallel processing here
+    purrr::map(~ boot_biomass(.x, reps = reps)) %>%
+    purrr::map_dfr(~ .x) %>%
+    select(species_name = species_common_name, survey_series_desc, year, index = mean_boot,
       lwr, upr, cv)
 }
 
 
 sdmTMB_biomass <- function(dat){
   dat %>% group_split(survey_series_id) %>%
-
-    browser()
-    # purrr::map(st_biomass) # retained here for trouble-shooting
-    furrr::future_map(st_biomass) %>%
+    # using future broke after updating a few packages (eg. "tibble"), so not using parallel processing here
+    purrr::map(st_biomass) %>%
     purrr::discard(is.null) %>%
-    purrr::map_dfr(~mutate(analysis = "geostatistical", .$index, species_name = gsub("_", " ", .$species_name), survey = .$survey)) %>%
-    as_tibble() #%>%
-    #select(analysis, species_name, survey_series_desc = survey, year, index = est,
-      #lwr, upr, cv)
+    purrr::map_dfr(~mutate(.$index, species_name = gsub("_", " ", .$species_name), survey = .$survey)) %>%
+    as_tibble() %>%
+    select(species_name, survey_series_desc = survey, year, index = est,
+      lwr, upr, cv)
 }
 
