@@ -19,6 +19,7 @@ library(magrittr)
 devtools::load_all(".")
 theme_set(theme_bw())
 cols <- paste0(c(RColorBrewer::brewer.pal(8L, "Set1")))
+dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 ```
 # Potential impact of reduced survey extent on survey biomass indices due to proposed MPA Network in the Northern Shelf Bioregion
 
@@ -134,7 +135,7 @@ g + geom_point(data = survey_sets, aes(x = longitude, y = latitude), size = 0.1,
   ggtitle("Yelloweye Synoptic Survey Sets")
 ```
 
-Now remove bottom trawl closed areas from the synoptic survey yelloweye data (using Queen Charlotte Sound survey as an example).
+Now remove bottom trawl closed areas from the synoptic survey yelloweye data (using Hecate Strait survey as an example).
 Dark blue points showing through are those that could be removed from the data set by the MPA restrictions for the commercial bottom trawl fishery.
 
 ```{r restrticted-bottom-trawl}
