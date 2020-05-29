@@ -1,7 +1,30 @@
+# This script loads shapefiles for the proposed Northern bioshelf region MPA
+# network and DFO Pacific Region surveys (currently works with the synoptic
+# bottom trawl surveys) and creates spatial objects Species data from the
+# surveys can be brought in with gfdata::get_survey_sets("species of interest").
+# The survey data can be clipped by appropriate MPA's using clip_by_mpa() and
+# specifying the fishery/gear type of interest (default fishery = "trawl"), and
+# desired restriction level ("X" = closed to all activity related to given
+# fishery, "C" = conditionally closed to activities related to given fishery).
+# The survey spatial objects can be similarly clipped by the MPA's using
+# clip_survey()
 
-plan(multisession, workers = availableCores() / 2)
+# plan(multisession, workers = availableCores() / 2)
 
+# create MPA spatial object from original MPA shapefile (created by Dana from gdb from Katie Gale)
+if (Sys.info()[['user']] == "keppele") {
+  closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
+    select(-OBJECTID_1)
+  names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry")
+} else {
+  closed <- readRDS("data/closed.rds")
+}
 
+# Filter closed areas spatial file for restricted areas by fishery type/gear of interest.
+# This is for later plotting. Clip_by_mpa() will determine appropriate zones to clip by based on input ssid's or fishery
+trawl <- closed_areas(closed, fishery = "trawl")
+# ll <- closed_areas(fishery = "longline")
+# trap <- closed_areas(fishery = "trap") # not yet functional for trap
 
 # get survey set data
 if (Sys.info()[['user']] %in% c("KeppelE", "keppele" )) {
@@ -12,20 +35,9 @@ ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_
 data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for testing
 names(data_all) <- spp
 
-# create MPA spatial object from original MPA shapefile (created by Dana from gdb from Katie Gale)
-if (Sys.info()[['user']] == "keppele") {
-closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
-  select(-OBJECTID_1)
-names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry")
-} else {
-  closed <- readRDS("data/closed.rds")
-}
 
-# Filter closed areas spatial file for restricted areas by fishery type/gear of interest.
-# This is for later plotting. Clip_by_mpa() will determine appropriate zones to clip by based on input ssid's or fishery
-trawl <- closed_areas(closed, fishery = "trawl")
-# ll <- closed_areas(fishery = "longline")
-# trap <- closed_areas(fishery = "trap") # not yet functional for trap
+
+
 
 # Clip survey sets data by applicable MPA restricted zones
 data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
