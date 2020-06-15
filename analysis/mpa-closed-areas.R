@@ -12,7 +12,7 @@
 # plan(multisession, workers = availableCores() / 2)
 
 # create MPA spatial object from original MPA shapefile (created by Dana from gdb from Katie Gale)
-if (Sys.info()[['user']] == "keppele") {
+if (Sys.info()[['user']] %in% c( "keppele", "KeppelE")) {
   closed <- read_sf(dsn = "data/NSB_MPA", layer = "NSB_MPA") %>%
     select(-OBJECTID_1)
   names(closed) <- c(names(read_sf("D:/MPA/draft MPA network Apr15 2020/MPA.gdb", layer = "Spatial_J1_20200403_Full_Attributes"))[1:73], "geometry")
@@ -23,7 +23,7 @@ if (Sys.info()[['user']] == "keppele") {
 # Filter closed areas spatial file for restricted areas by fishery type/gear of interest.
 # This is for later plotting. Clip_by_mpa() will determine appropriate zones to clip by based on input ssid's or fishery
 trawl <- closed_areas(closed, fishery = "trawl")
-# ll <- closed_areas(fishery = "longline")
+ll <- closed_areas(fishery = "longline")
 # trap <- closed_areas(fishery = "trap") # not yet functional for trap
 
 # get survey set data
@@ -31,8 +31,8 @@ if (Sys.info()[['user']] %in% c("KeppelE", "keppele" )) {
 dir = "D:/GitHub/pbs-assess/gfsynopsis-old/report/data-cache/"
 }
 spp <- c("yelloweye rockfish", "pacific cod") # example species
-ye_all <- import_survey_sets("yelloweye rockfish", ssid = c(1,3,4,16), dir, min_year = 2016) # smaller dataset for testing with one species
-data_all <- purrr::map(spp, import_survey_sets, ssid = c(1, 3, 4, 16), dir, min_year = 2016) # using years since 2016 for testing
+ye_all <- import_survey_sets("yelloweye rockfish", dir) # smaller dataset for testing with one species
+data_all <- purrr::map(spp, import_survey_sets,  dir = dir) # using years since 2016 for testing
 names(data_all) <- spp
 
 
@@ -48,10 +48,14 @@ data_exclude <- purrr::map(data_all, clip_by_mpa, ssid = c(1, 3, 4, 16))
 
 # Create list of spatial synoptic survey objects and reduced-area synoptic survey objects
 # Using the active block syn shape files updated from 2019 survey
-import_survey_shps <- function(shp_name){
-  syn <- "data/SynSurveyShps"
-  col <- c("block", "grouping_code", "selection_ind", "survey_series_id", "survey_series_desc", "survey_series_abbrev", "geometry")
-  sf::st_read(dsn=syn, layer = shp_name) %>%
+import_survey_shps <- function(shp_name, dir = "data/SynSurveyShps", survey_type = "trawl"){
+  if (survey_type == "trawl") {
+    col <- c("block", "grouping_code", "selection_ind", "survey_series_id", "survey_series_desc", "survey_series_abbrev", "geometry")
+  } else {
+    col <- c("block", "grouping_code", "selection_ind", "survey_series_id", "geometry")
+  }
+
+  sf::st_read(dsn=dir, layer = shp_name) %>%
     st_transform(crs = 3156) %>%
     set_names(col)
 }
@@ -60,6 +64,12 @@ import_survey_shps <- function(shp_name){
 syn_names <- c("HS_active_2020", "QCS_active_2020", "WCHG_active_2020", "WCVI_active_2020")
 syn_surveys <- map(syn_names, import_survey_shps)
 names(syn_surveys) <- c("hs", "qcs", "wchg", "wcvi")
+
+ll_names <- c("HBLL_Inside_N_active", "HBLL_Inside_S_active", "HBLL_Outside_N_active", "HBLL_Outside_S_active")
+ll_surveys <- map(ll_names, import_survey_shps, dir = "data/HBLL_shps", survey_type = "ll")
+names(ll_surveys) <- c("hbll_n", "hbll_s", "hbll_n", "hbll_s")
+
+
 
 make_survey_grid <- function(dat){
   dat %>% st_centroid() %>%
@@ -72,12 +82,20 @@ syn_grid <- map_df(syn_surveys, make_survey_grid)
 # saveRDS(syn_grid, "data/syn_grid.rds")
 # syn_surveys <- readRDS("data/syn_surveys.rds")
 
+ll_grid <- map_df(ll_surveys, make_survey_grid)
+# saveRDS(ll_surveys, "data/ll_surveys.rds")
+# saveRDS(ll_grid, "data/ll_grid.rds")
+# ll_surveys <- readRDS("data/ll_surveys.rds")
+
+
 # Clip by mpa restrictions
 syn_surveys_reduced <- map(syn_surveys, clip_survey, fishery = "trawl")
 syn_grid_reduced <- map_df(syn_surveys_reduced, make_survey_grid)
 # saveRDS(syn_surveys_reduced, "data/MPA_reduced_syn_surveys.rds")
 # saveRDS(syn_grid_reduced, "data/syn_grid_reduced.rds")
 # syn_surveys_reduced <- readRDS("data/MPA_reduced_syn_surveys.rds")
+ll_surveys_reduced <- map(ll_surveys, clip_survey, fishery = "ll")
+ll_grid_reduced <- map_df(ll_surveys_reduced, make_survey_grid)
 
 # Determine area of original survey grid and MPA-clipped survey grid
 survey_area <- function(dat){

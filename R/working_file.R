@@ -42,7 +42,7 @@ closed_areas <- function(mpa_network_shp = closed, ssid = NULL, fishery = NULL, 
 #' \dontrun{
 #' survey_sets <- import_survey_sets("yelloweye-rockfish", ssid = c(1, 3, 4, 16), dir = dir, min_year = 2003)
 #' }
-import_survey_sets <- function(spp, ssid, dir, min_year = 1950){
+import_survey_sets <- function(spp, ssid = c(1, 3, 4, 16, 22, 36, 39, 40), dir, min_year = 1950){
   spp <- spp %>% gsub(pattern = " ", replacement = "-")
 
   if(file.exists(paste0(dir, spp, ".rds"))){
